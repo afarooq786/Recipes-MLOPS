@@ -1,0 +1,13 @@
+# Secrets — never commit
+secrets/
+
+# DVC cache (data itself lives in the GCS remote, not git)
+.dvc/cache
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local build scratch (not part of the deliverable)
+docs/preview-*.png

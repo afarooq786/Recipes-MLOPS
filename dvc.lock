@@ -1,0 +1,71 @@
+schema: '2.0'
+stages:
+  ingest:
+    cmd: python data/ingest.py
+    deps:
+    - path: data/ingest.py
+      hash: md5
+      md5: 57187c82b59b0b6b3961943ae4ffec16
+      size: 5067
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: e20156fecc1bcfc383d31f62ec448eda.dir
+      size: 1737953
+      nfiles: 2
+  validate:
+    cmd: python data/validate.py
+    deps:
+    - path: data/raw/recipes.csv
+      hash: md5
+      md5: 0945bb4f14655da74f934556565269b7
+      size: 1643961
+    - path: data/raw/test_recipes.csv
+      hash: md5
+      md5: aeae55d51b4163df7fbc0f8380d9ec79
+      size: 93992
+    - path: data/validate.py
+      hash: md5
+      md5: 29123370b47708c137aabf04ec9f6307
+      size: 9810
+    outs:
+    - path: data/validation_report.json
+      hash: md5
+      md5: b862cfb1e63ba1cba92fd234b9679500
+      size: 500
+    - path: data/validation_report.md
+      hash: md5
+      md5: 15dd587ab62dc0d0d9b3099c30e8cf2e
+      size: 355
+  split:
+    cmd: python data/split.py
+    deps:
+    - path: data/raw/recipes.csv
+      hash: md5
+      md5: 0945bb4f14655da74f934556565269b7
+      size: 1643961
+    - path: data/split.py
+      hash: md5
+      md5: 326ce571b08c6d05b2371a76a76ff868
+      size: 6971
+    - path: data/validation_report.json
+      hash: md5
+      md5: b862cfb1e63ba1cba92fd234b9679500
+      size: 500
+    outs:
+    - path: data/processed/splits/splits_manifest.json
+      hash: md5
+      md5: 462fb26c7caba498c95b1f9a84634d89
+      size: 757
+    - path: data/processed/splits/test.csv
+      hash: md5
+      md5: 3bee8346bc6eef286b0901b2026acfaa
+      size: 217629
+    - path: data/processed/splits/train.csv
+      hash: md5
+      md5: d79debf6abd148d934665aa2c3a0aada
+      size: 1008037
+    - path: data/processed/splits/val.csv
+      hash: md5
+      md5: 4f8bebf0c56d021b046ea632c10e94b8
+      size: 215150

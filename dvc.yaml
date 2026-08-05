@@ -1,0 +1,40 @@
+stages:
+  ingest:
+    cmd: python data/ingest.py
+    deps:
+      - data/ingest.py
+    outs:
+      - data/raw:
+          persist: true
+    desc: >-
+      Downloads the recipe dataset from Kaggle (thedevastator/better-recipes-for-a-better-life)
+      into data/raw/. Idempotent: skips re-downloading if raw files already exist locally.
+
+  validate:
+    cmd: python data/validate.py
+    deps:
+      - data/validate.py
+      - data/raw/recipes.csv
+      - data/raw/test_recipes.csv
+    outs:
+      - data/validation_report.json
+      - data/validation_report.md
+    desc: >-
+      Validates raw data against the defined schema (required columns, dtypes, null rules,
+      allowed ranges). Exits non-zero on critical failures, which stops `dvc repro` here.
+
+  split:
+    cmd: python data/split.py
+    deps:
+      - data/split.py
+      - data/raw/recipes.csv
+      - data/validation_report.json
+    outs:
+      - data/processed/splits/train.csv
+      - data/processed/splits/val.csv
+      - data/processed/splits/test.csv
+      - data/processed/splits/splits_manifest.json
+    desc: >-
+      Builds the rating>=4 label, dedupes recipes, and produces a reproducible, seeded,
+      stratified train/val/test split. The test split stays isolated for production
+      validation only.

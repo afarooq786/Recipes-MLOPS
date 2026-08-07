@@ -5,8 +5,8 @@ stages:
     deps:
     - path: data/ingest.py
       hash: md5
-      md5: 57187c82b59b0b6b3961943ae4ffec16
-      size: 5067
+      md5: 91a4bf3a906e52493cee27841a97bd45
+      size: 5211
     outs:
     - path: data/raw
       hash: md5
@@ -26,17 +26,17 @@ stages:
       size: 93992
     - path: data/validate.py
       hash: md5
-      md5: 29123370b47708c137aabf04ec9f6307
-      size: 9810
+      md5: f279f50a8492c493d901c7556745040b
+      size: 10059
     outs:
     - path: data/validation_report.json
       hash: md5
-      md5: b862cfb1e63ba1cba92fd234b9679500
-      size: 500
+      md5: 4d8507e4aa3de78699b74967bb4cc4fb
+      size: 526
     - path: data/validation_report.md
       hash: md5
-      md5: 15dd587ab62dc0d0d9b3099c30e8cf2e
-      size: 355
+      md5: 024215e04d4cc9ca0181ac79e31843c4
+      size: 371
   split:
     cmd: python data/split.py
     deps:
@@ -46,26 +46,26 @@ stages:
       size: 1643961
     - path: data/split.py
       hash: md5
-      md5: 326ce571b08c6d05b2371a76a76ff868
-      size: 6971
+      md5: c6de88775b4db20426145dc4ac9b45c6
+      size: 7157
     - path: data/validation_report.json
       hash: md5
-      md5: b862cfb1e63ba1cba92fd234b9679500
-      size: 500
+      md5: 4d8507e4aa3de78699b74967bb4cc4fb
+      size: 526
     outs:
     - path: data/processed/splits/splits_manifest.json
       hash: md5
-      md5: 462fb26c7caba498c95b1f9a84634d89
-      size: 757
+      md5: 98ad7db9bf91312cbab7470af52f51bf
+      size: 794
     - path: data/processed/splits/test.csv
       hash: md5
-      md5: 3bee8346bc6eef286b0901b2026acfaa
-      size: 217629
+      md5: f05d411cf273a0df5b061f7952fb7649
+      size: 217775
     - path: data/processed/splits/train.csv
       hash: md5
-      md5: d79debf6abd148d934665aa2c3a0aada
-      size: 1008037
+      md5: d35041f3600964d2f12004ca54fcbdda
+      size: 1008710
     - path: data/processed/splits/val.csv
       hash: md5
-      md5: 4f8bebf0c56d021b046ea632c10e94b8
-      size: 215150
+      md5: 04d5d26c2f440a47d78c2905b7a745fb
+      size: 215295

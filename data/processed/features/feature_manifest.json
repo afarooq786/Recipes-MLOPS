@@ -1,0 +1,7 @@
+{
+  "synthetic_user_features": false,
+  "popularity_stats_fit_on": "train",
+  "popularity_stats_cuisine_count": 280,
+  "dietary_flags_are_heuristic": true,
+  "seed": 42
+}

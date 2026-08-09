@@ -32,6 +32,7 @@ recipe-mlops/
 │   └── build_features.py
 ├── models/
 │   ├── baseline.py
+│   ├── champion_config.json
 │   ├── train_logistic.py
 │   ├── train_xgboost.py
 │   ├── train_challengers.py
@@ -438,6 +439,45 @@ python -m models.register_best_model
 ```
 
 The test split should remain untouched during these steps.
+
+### Champion Benchmark and Promotion
+
+Because the project currently uses a local MLflow server, each developer's MLflow
+tracking database and Model Registry exist only on their own machine. The registered
+`champion` alias therefore is not automatically shared when another team member clones
+the GitHub repository.
+
+To make the selected champion reproducible across environments, the repository includes:
+
+`models/champion_config.json`
+
+This file is the Git-tracked source of truth for the currently approved model and its
+benchmark performance. The current champion is the character-TF-IDF Logistic Regression
++ word-TF-IDF Linear SVM rank ensemble, selected using 5-fold cross-validation repeated
+10 times (50 held-out folds).
+
+Current champion benchmark:
+
+- Mean repeated-CV ROC-AUC: 0.6810
+- Median repeated-CV ROC-AUC: 0.6688
+- Validation ROC-AUC: approximately 0.690
+- Test set used for model selection: No
+
+The manifest also records the component model hyperparameters and ensemble configuration,
+allowing the champion to be reconstructed from the versioned training data.
+
+New training runs should be treated as challengers rather than automatically replacing
+the champion. A challenger should only be considered for promotion if it improves on the
+current champion under the same evaluation methodology and passes the project's validation
+checks. If promoted, the new model should be registered as a new MLflow model version, the
+`champion` alias should be moved to that version, and `champion_config.json` should be
+updated to record the new approved benchmark.
+
+This design allows the team to use local MLflow instances during development while still
+maintaining a shared, version-controlled definition of the currently approved model.
+
+
+
 
 ## Known Data Notes
 

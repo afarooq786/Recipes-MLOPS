@@ -1,0 +1,66 @@
+[
+  {
+    "model": "logistic_regression",
+    "C": 0.01,
+    "class_weight": null,
+    "roc_auc": 0.6295955882352942,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 0.1,
+    "class_weight": null,
+    "roc_auc": 0.5799632352941176,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 1.0,
+    "class_weight": null,
+    "roc_auc": 0.5091911764705882,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 10.0,
+    "class_weight": null,
+    "roc_auc": 0.5174632352941176,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 0.01,
+    "class_weight": "balanced",
+    "roc_auc": 0.6130514705882353,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 0.1,
+    "class_weight": "balanced",
+    "roc_auc": 0.5652573529411764,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 1.0,
+    "class_weight": "balanced",
+    "roc_auc": 0.5018382352941178,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  },
+  {
+    "model": "logistic_regression",
+    "C": 10.0,
+    "class_weight": "balanced",
+    "roc_auc": 0.5220588235294118,
+    "precision_at_5": 1.0,
+    "grouped_precision_at_5": 0.9449404761904762
+  }
+]

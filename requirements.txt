@@ -17,3 +17,9 @@ numpy>=1.24
 
 # Evaluation plots
 matplotlib>=3.7
+
+# Model training
+xgboost>=2.0
+
+# Experiment tracking and model registry
+mlflow>=3.0

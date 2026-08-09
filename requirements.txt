@@ -23,3 +23,6 @@ xgboost>=2.0
 
 # Experiment tracking and model registry
 mlflow>=3.0
+
+# Model serialization
+joblib>=1.3

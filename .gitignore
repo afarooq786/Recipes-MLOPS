@@ -11,3 +11,14 @@ __pycache__/
 
 # Local build scratch (not part of the deliverable)
 docs/preview-*.png
+
+# MLflow local tracking artifacts
+mlflow.db
+mlruns/
+mlartifacts/
+
+# macOS
+.DS_Store
+
+# Local trained model artifacts
+*.joblib

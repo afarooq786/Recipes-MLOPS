@@ -26,3 +26,6 @@ mlflow>=3.0
 
 # Model serialization
 joblib>=1.3
+
+# Orchestration
+apache-airflow>=2.9

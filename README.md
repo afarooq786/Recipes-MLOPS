@@ -8,14 +8,17 @@ monitoring.
 
 This README documents the data ingestion, validation, splitting,
 versioning, preprocessing, feature engineering, baseline, evaluation,
-model-training, experiment-tracking, and model-registry work currently
-implemented in the repository. Deployment, orchestration, and production
-monitoring remain downstream project stages.
+model-training, experiment-tracking, model-registry, and Airflow
+orchestration work currently implemented in the repository.
+Deployment and production monitoring remain downstream project stages.
 
 ## Project Structure
 
 ``` text
 recipe-mlops/
+├── dags/
+│   ├── data_pipeline_dag.py
+│   └── ml_pipeline_dag.py
 ├── data/
 │   ├── ingest.py
 │   ├── validate.py
@@ -476,6 +479,133 @@ updated to record the new approved benchmark.
 This design allows the team to use local MLflow instances during development while still
 maintaining a shared, version-controlled definition of the currently approved model.
 
+## Airflow Orchestration
+
+### How it was done
+
+Two Airflow DAGs were created in `dags/` to orchestrate the full
+pipeline end-to-end. Each DAG calls the project's existing Python
+scripts through `BashOperator` tasks, so no existing code was
+modified. A `PythonOperator` handles the conditional model promotion
+gate, which is the only new logic.
+
+Two separate DAGs were chosen so the data pipeline and ML pipeline
+can be triggered independently.
+
+### DAG 1: `recipe_data_pipeline`
+
+Handles data ingestion through splitting.
+
+| # | Task | Operator | What it runs |
+|---|------|----------|--------------|
+| 1 | `download_data` | BashOperator | `python data/ingest.py` — downloads raw data from Kaggle |
+| 2 | `validate_schema` | BashOperator | `python data/validate.py` — validates schemas with Pandera |
+| 3 | `version_files` | BashOperator | `dvc add data/raw && dvc push` — versions raw files in DVC |
+| 4 | `create_splits` | BashOperator | `python data/split.py` — creates train/val/test splits |
+
+``` text
+download_data → validate_schema → version_files → create_splits
+```
+
+### DAG 2: `recipe_ml_pipeline`
+
+Handles preprocessing through model promotion.
+
+| # | Task | Operator | What it runs |
+|---|------|----------|--------------|
+| 1 | `preprocess` | BashOperator | `python preprocessing/preprocess.py` — cleans and normalizes data |
+| 2 | `feature_engineering` | BashOperator | `python features/build_features.py` — builds model features |
+| 3 | `train_candidates` | BashOperator | `python -m models.train_final_candidates` — trains and evaluates candidates, logs to MLflow |
+| 4 | `evaluate_and_log` | BashOperator | `python -m models.register_best_model` — registers best model in MLflow |
+| 5 | `promote_model` | PythonOperator | Conditional promotion gate (see below) |
+
+``` text
+preprocess → feature_engineering → train_candidates → evaluate_and_log → promote_model
+```
+
+### Model promotion gate
+
+The `promote_model` task implements a conditional promotion check
+that prevents regressions from being deployed:
+
+1. Reads the current champion benchmark from `models/champion_config.json`.
+2. Finds the latest finished `ensemble_text_champion` run in MLflow.
+3. Compares the candidate's `validation_roc_auc` against the champion's
+   `selection_metric_value`.
+4. **Promotes only if the candidate improves the metric.**
+5. On promotion: registers a new MLflow model version, moves the `champion`
+   alias, and updates `champion_config.json`.
+6. On skip: logs the decision and exits cleanly — no changes are made.
+
+### Running the Airflow DAGs
+
+**Prerequisites:** Make sure MLflow is running before triggering the ML
+pipeline (`mlflow server --host 127.0.0.1 --port 5000`).
+
+**Step 1 — Install Airflow:**
+
+``` bash
+pip install "apache-airflow>=2.9"
+```
+
+**Step 2 — Set environment variables:**
+
+``` bash
+# Tell Airflow where its home directory is
+export AIRFLOW_HOME=~/airflow
+
+# Tell the DAGs where the project repo lives
+# (defaults to the parent of dags/ if not set)
+export RECIPE_PROJECT_DIR=$(pwd)
+```
+
+**Step 3 — Initialize the Airflow database:**
+
+``` bash
+airflow db migrate
+```
+
+**Step 4 — Make the DAGs visible to Airflow:**
+
+Symlink the `dags/` directory into Airflow's expected location:
+
+``` bash
+ln -s "$RECIPE_PROJECT_DIR/dags" "$AIRFLOW_HOME/dags"
+```
+
+Alternatively, edit `$AIRFLOW_HOME/airflow.cfg` and set
+`dags_folder` to point directly to the repository's `dags/`
+directory.
+
+**Step 5 — Verify both DAGs are discovered:**
+
+``` bash
+airflow dags list
+```
+
+You should see `recipe_data_pipeline` and `recipe_ml_pipeline`.
+
+**Step 6 — Start the Airflow scheduler and webserver:**
+
+``` bash
+airflow scheduler &
+airflow webserver --port 8080 &
+```
+
+Open `http://localhost:8080` to access the Airflow web UI.
+
+**Step 7 — Trigger the pipelines:**
+
+``` bash
+# Run the data pipeline first
+airflow dags trigger recipe_data_pipeline
+
+# After data is ready, run the ML pipeline
+airflow dags trigger recipe_ml_pipeline
+```
+
+You can also trigger DAGs from the web UI by clicking the play
+button on each DAG's page.
 
 
 
@@ -505,11 +635,9 @@ maintaining a shared, version-controlled definition of the currently approved mo
 
 ## What's Next
 
-The remaining project work builds on the data and registered model:
+The remaining project work builds on the data, registered model,
+and Airflow orchestration:
 
--   Wire remaining preprocessing/training steps into the automated
-    orchestrator/DVC workflow as needed.
--   Complete the Airflow or equivalent orchestration layer.
 -   Package the registered champion model behind a FastAPI/Flask/BentoML
     inference service.
 -   Containerize the service with Docker.
@@ -550,7 +678,7 @@ Completed:
 
 Remaining / downstream:
 
--   [ ] Full workflow orchestration
+-   [x] Full workflow orchestration (Airflow DAGs)
 -   [ ] Containerized inference API
 -   [ ] Production baseline validation
 -   [ ] Monitoring dashboard/framework

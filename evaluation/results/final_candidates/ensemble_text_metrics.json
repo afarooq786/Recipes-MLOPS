@@ -1,0 +1,462 @@
+{
+  "n_samples": 144,
+  "positive_rate": 0.9444444444444444,
+  "roc_auc": 0.6902573529411765,
+  "precision_at_k_overall": 1.0,
+  "k": 5,
+  "grouped_precision_at_k": {
+    "k": 5,
+    "macro_avg_precision_at_k": 0.9449404761904762,
+    "num_groups": 112,
+    "per_group": {
+      "/Appetizers and Snacks/Canapes and Crostini Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Cheese/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Dips and Spreads Recipes/Guacamole Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Dips and Spreads Recipes/Salsa Recipes/Avocado Salsa Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Meat and Poultry/Meatball Appetizer Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Seafood/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Snacks/Energy Ball Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Snacks/Kids/Healthy/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Appetizers and Snacks/Wraps and Rolls/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Pastries/Doughnuts/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Quick Bread Recipes/Muffin Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Quick Bread Recipes/Muffin Recipes/Banana Muffin Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Quick Bread Recipes/Scone Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Quick Bread Recipes/Zucchini Bread Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Bread/Yeast Bread Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Breakfast and Brunch/Breakfast Bread Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Breakfast and Brunch/Cereals/Oatmeal Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Breakfast and Brunch/Drinks/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Breakfast and Brunch/Eggs/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/Asian/Thai/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/European/French/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/European/German/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/European/UK and Ireland/English/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/European/UK and Ireland/Irish/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/Latin American/Caribbean/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Cuisine/Latin American/Mexican/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cakes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cakes/Cheesecake Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cakes/Coffee Cake Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cakes/Pineapple Cake Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Cakes/Pound Cake Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cakes/Shortcake Recipes/Strawberry Shortcake Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Candy Recipes/Nut Candy Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cobblers/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cobblers/Peach Cobbler Recipes/": {
+        "precision_at_k": 0.0,
+        "group_size": 1
+      },
+      "/Desserts/Cookies/Bar Cookie Recipes/": {
+        "precision_at_k": 0.0,
+        "group_size": 1
+      },
+      "/Desserts/Cookies/Fruit Cookie Recipes/Coconut/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cookies/Fruit Cookie Recipes/Cranberry/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Cookies/Spice Cookie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Crisps and Crumbles Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Crisps and Crumbles Recipes/Apple Crisps and Crumbles Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Custards and Puddings/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Custards and Puddings/Rice/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Fillings/Fruit Fillings/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Frozen Dessert Recipes/Ice Cream/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Fruit Desserts/Apple Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Fruit Desserts/Banana Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 3
+      },
+      "/Desserts/Fruit Desserts/Cherry Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 3
+      },
+      "/Desserts/Fruit Desserts/Peach Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 7
+      },
+      "/Desserts/Fruit Desserts/Pineapple Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Fruit Desserts/Strawberry Dessert Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/Apple Pie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Pies/Custard and Cream Pies/Pineapple Pie/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/Fruit Pies/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Pies/Fruit Pies/Pear Pie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/Fruit Pies/Rhubarb Pie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/No-Bake Pie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Desserts/Pies/Tarts/Fruit Tart Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Desserts/Specialty Dessert Recipes/Bread Pudding Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Cocktail Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Cocktail Recipes/Gin Drinks Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Eggnog Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Juice Recipes/": {
+        "precision_at_k": 0.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Liqueur Recipes/": {
+        "precision_at_k": 0.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Smoothie Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Drinks Recipes/Smoothie Recipes/Banana/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Smoothie Recipes/Mango/": {
+        "precision_at_k": 0.5,
+        "group_size": 2
+      },
+      "/Drinks Recipes/Smoothie Recipes/Orange/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Drinks Recipes/Smoothie Recipes/Strawberry/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Everyday Cooking/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Everyday Cooking/Vegan/Desserts/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Holidays and Events Recipes/Thanksgiving/Turkey/Roasted/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Meatball Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Meatloaf Recipes/Beef Meatloaf Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Pork/Pork Chop Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Pork/Pork Chop Recipes/Boneless/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Rice/Risotto Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Sandwich Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Main Dishes/Seafood Main Dishes/Salmon/Baked Salmon Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Main Dishes/Seafood Main Dishes/Salmon/Salmon Steak Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Meat and Poultry/Chicken/Chicken Breast/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Meat and Poultry/Lamb/Chops/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Meat and Poultry/Pork/Pork Tenderloin Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Quick Bread Recipes/Fruit Bread Recipes/Banana Bread/Banana Nut Bread Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Egg Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Fruit Salad Recipes/": {
+        "precision_at_k": 0.6666666666666666,
+        "group_size": 3
+      },
+      "/Salad/Fruit Salad Recipes/Orange Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Salad/Green Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Green Salad Recipes/Spinach Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Seafood Salad Recipes/Salmon Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Vegetable Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Vegetable Salad Recipes/Cucumber Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Vegetable Salad Recipes/Tomato Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Salad/Waldorf Salad Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Seafood/Fish/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Casseroles/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Rice Side Dish Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Sauces and Condiments/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Sauces and Condiments/Canning and Preserving Recipes/Fruit Butter Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Sauces and Condiments/Canning and Preserving Recipes/Jams and Jellies Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 3
+      },
+      "/Side Dish/Sauces and Condiments/Chutney Recipes/": {
+        "precision_at_k": 0.6666666666666666,
+        "group_size": 3
+      },
+      "/Side Dish/Sauces and Condiments/Relish Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Sauces and Condiments/Salad Dressing Recipes/Vinaigrette Dressing Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 3
+      },
+      "/Side Dish/Sauces and Condiments/Sauces/": {
+        "precision_at_k": 1.0,
+        "group_size": 2
+      },
+      "/Side Dish/Sauces and Condiments/Sauces/Cranberry Sauce Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Sauces and Condiments/Sauces/Wing Sauce Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Side Dish/Vegetables/Carrots/Glazed Carrot Recipes/": {
+        "precision_at_k": 0.0,
+        "group_size": 1
+      },
+      "/Side Dish/Vegetables/Greens/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Soups, Stews and Chili Recipes/Soup Recipes/Fruit Soup Recipes/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      },
+      "/Soups, Stews and Chili Recipes/Stews/Lamb/": {
+        "precision_at_k": 1.0,
+        "group_size": 1
+      }
+    }
+  }
+}

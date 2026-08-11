@@ -29,3 +29,8 @@ joblib>=1.3
 
 # Orchestration
 apache-airflow>=2.9
+
+# Inference API
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6

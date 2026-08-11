@@ -1,0 +1,17 @@
+{
+  "target": "rating >= 4",
+  "test_set_used": false,
+  "char_logistic": {
+    "repeated_cv_mean_auc": 0.6276982564679416,
+    "validation_auc": 0.6976102941176471
+  },
+  "word_svm": {
+    "repeated_cv_mean_auc": 0.6476743532058492,
+    "validation_auc": 0.6681985294117647
+  },
+  "ensemble": {
+    "repeated_cv_mean_auc": 0.681039,
+    "repeated_cv_std_auc": 0.089698,
+    "validation_auc": 0.6902573529411765
+  }
+}

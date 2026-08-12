@@ -607,7 +607,112 @@ airflow dags trigger recipe_ml_pipeline
 You can also trigger DAGs from the web UI by clicking the play
 button on each DAG's page.
 
+## FastAPI Inference Service & Nutritional Filtering Layer
 
+The repository provides a production-grade inference service in `api/`:
+
+- `api/main.py`: FastAPI application loading the champion model from MLflow (`models:/recipe-recommender@champion`).
+- `api/schemas.py`: Pydantic request/response contracts for recipe candidates, dietary tags, filter constraints, and predictions.
+- `api/filters.py`: Deterministic pre-inference filter layer processing calorie limits, cooking times, required dietary tags, and excluded ingredients *before* candidate recipes are sent to the model.
+
+### API Endpoints
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/health` | `GET` | Service status, model loaded flag, model name, and alias |
+| `/predict` | `POST` | Scores and ranks recipe candidates after applying constraint filters |
+| `/reload-model` | `POST` | Hot-reloads the champion model from the MLflow registry |
+
+---
+
+## Containerization and Docker Compose Deployment
+
+The entire system (Inference API, MLflow Tracking & Registry Server, Airflow Webserver/Scheduler, and PostgreSQL) is fully containerized and orchestratable via Docker Compose.
+
+### Container Architecture
+
+| Service | Container Name | Port | Description |
+| --- | --- | --- | --- |
+| **FastAPI Service** | `recipe-api` | `8000` | Inference API built from `Dockerfile.api` |
+| **MLflow Server** | `recipe-mlflow` | `5000` | Tracking server & model registry backed by `mlflow_data` volume |
+| **Airflow Webserver** | `recipe-airflow-webserver` | `8080` | Airflow Web UI built from `Dockerfile.airflow` |
+| **Airflow Scheduler** | `recipe-airflow-scheduler` | — | Background task scheduler running DAGs |
+| **Airflow Init** | `recipe-airflow-init` | — | Migration task creating Airflow DB schema & admin user |
+| **PostgreSQL** | `recipe-postgres` | `5432` | Backing database for Airflow metadata |
+
+### Quick Start with Docker Compose
+
+1. **Build and start the entire stack in detached mode:**
+
+```bash
+docker compose up -d --build
+```
+
+2. **Verify container health:**
+
+```bash
+docker compose ps
+```
+
+3. **Access Service Interfaces:**
+   - **FastAPI Documentation & Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+   - **MLflow Tracking & Model Registry**: [http://localhost:5000](http://localhost:5000)
+   - **Airflow Web UI**: [http://localhost:8080](http://localhost:8080) (Credentials: `admin` / `admin`)
+
+4. **Verify FastAPI Endpoint Health:**
+
+```bash
+curl http://localhost:8000/health
+```
+
+5. **Send a Test Prediction Request:**
+
+```bash
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "candidates": [
+         {
+           "recipe_id": "r101",
+           "title": "Healthy Summer Salad",
+           "ingredients_parsed": "fresh spinach, cherry tomatoes, olive oil, lemon juice",
+           "calories": 220,
+           "cook_time_minutes": 10,
+           "dietary_tags": ["vegetarian", "vegan", "gluten_free"]
+         },
+         {
+           "recipe_id": "r102",
+           "title": "High Calorie Bacon Burger",
+           "ingredients_parsed": "beef patty, bacon, cheddar cheese, bun",
+           "calories": 950,
+           "cook_time_minutes": 25
+         }
+       ],
+       "constraints": {
+         "max_calories": 500,
+         "required_dietary_tags": ["vegetarian"]
+       },
+       "top_k": 5
+     }'
+```
+
+6. **Tear down the stack:**
+
+```bash
+# Stop containers keeping volumes intact
+docker compose down
+
+# Stop containers and wipe persistent data volumes
+docker compose down -v
+```
+
+### Running Automated API Integration Tests
+
+To run the Pytest integration suite for the API logic:
+
+```bash
+python -m pytest tests/test_api_docker.py -v
+```
 
 ## Known Data Notes
 
@@ -679,7 +784,8 @@ Completed:
 Remaining / downstream:
 
 -   [x] Full workflow orchestration (Airflow DAGs)
--   [ ] Containerized inference API
+-   [x] Containerized inference API (FastAPI)
+-   [x] Docker Compose deployment stack (FastAPI + MLflow + Airflow + Postgres)
 -   [ ] Production baseline validation
 -   [ ] Monitoring dashboard/framework
 -   [ ] Drift/stress-test simulation

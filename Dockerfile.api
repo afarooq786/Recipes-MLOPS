@@ -1,0 +1,35 @@
+# Dockerfile.api — FastAPI inference service container
+FROM python:3.10-slim
+
+# Prevent Python from writing .pyc files and enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app
+
+WORKDIR /app
+
+# Install system dependencies (curl for healthchecks, build tools for packages if needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install python dependencies
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application and model metadata
+COPY api /app/api
+COPY models /app/models
+COPY preprocessing /app/preprocessing
+COPY features /app/features
+COPY evaluation /app/evaluation
+
+EXPOSE 8000
+
+# Docker healthcheck endpoint verification
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]

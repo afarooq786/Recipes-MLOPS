@@ -1001,13 +1001,9 @@ def main() -> None:
             ),
             artifacts={
                 "char_model":
-                    str(
-                        char_joblib_path
-                    ),
+                    char_joblib_path.as_posix(),
                 "word_svm_model":
-                    str(
-                        word_svm_joblib_path
-                    ),
+                    word_svm_joblib_path.as_posix(),
             },
             pip_requirements=[
                 "mlflow",

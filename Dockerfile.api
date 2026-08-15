@@ -1,5 +1,14 @@
 # Dockerfile.api — FastAPI inference service container
-FROM python:3.12-slim
+#
+# NOTE: This must match the Python *minor* version used to train/pickle the
+# champion model (check with `python --version` in your training venv).
+# A mismatch here loads fine up to the unpickle step and then segfaults
+# (exit code 139) rather than raising a clean Python exception, since
+# scikit-learn/numpy/xgboost objects are not guaranteed binary-compatible
+# across CPython minor versions. Currently pinned to 3.11 to match a
+# model trained under Python 3.11.9. If you retrain under a different
+# Python version, update this line to match.
+FROM python:3.11-slim
 
 # Prevent Python from writing .pyc files and enable unbuffered logging
 ENV PYTHONDONTWRITEBYTECODE=1 \

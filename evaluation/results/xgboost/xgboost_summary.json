@@ -1,0 +1,16 @@
+{
+  "best_cv_roc_auc": 0.5150731158605175,
+  "best_params": {
+    "model__colsample_bytree": 0.8,
+    "model__learning_rate": 0.1,
+    "model__max_depth": 2,
+    "model__min_child_weight": 1,
+    "model__n_estimators": 100,
+    "model__subsample": 1.0
+  },
+  "validation_roc_auc": 0.45128676470588236,
+  "validation_precision_at_5": 1.0,
+  "validation_grouped_precision_at_5": 0.9449404761904762,
+  "n_parameter_combinations": 144,
+  "test_set_used": false
+}

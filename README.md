@@ -6,16 +6,28 @@ pipeline: data ingestion → validation → versioning → feature engineering
 → training → experiment tracking → model registry → deployment →
 monitoring.
 
-This README documents the data ingestion, validation, splitting,
-versioning, preprocessing, feature engineering, baseline, evaluation,
-model-training, experiment-tracking, model-registry, and Airflow
-orchestration work currently implemented in the repository.
-Deployment and production monitoring remain downstream project stages.
+This README documents the full pipeline currently implemented in the
+repository: data ingestion, validation, splitting, versioning,
+preprocessing, feature engineering, baseline, evaluation,
+model-training, experiment-tracking, model-registry, Airflow
+orchestration, containerized deployment (FastAPI + Docker Compose),
+and production monitoring (drift simulation, Evidently + rule-based
+data quality checks, and a custom `/metrics` endpoint). Remaining work
+is a single recorded end-to-end run and the final presentation -- see
+the Status section near the bottom.
 
 ## Project Structure
 
 ``` text
 recipe-mlops/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
+├── api/
+│   ├── main.py
+│   ├── schemas.py
+│   ├── filters.py
+│   └── metrics_middleware.py
 ├── dags/
 │   ├── data_pipeline_dag.py
 │   └── ml_pipeline_dag.py
@@ -45,10 +57,33 @@ recipe-mlops/
 ├── evaluation/
 │   ├── metrics.py
 │   └── results/
+├── monitoring/
+│   ├── drift_simulation.py
+│   ├── evidently_report.py
+│   ├── data_quality_checks.py
+│   ├── verify_alerts.py
+│   ├── production_validation.py
+│   ├── drift_data/         (generated -- gitignored)
+│   └── reports/            (generated -- gitignored)
+├── tests/
+│   ├── test_preprocessing.py
+│   ├── test_build_features.py
+│   ├── test_metrics.py
+│   ├── test_validate.py
+│   ├── test_filters.py
+│   ├── test_schemas.py
+│   ├── test_api_docker.py
+│   ├── test_api_integration.py
+│   └── test_metrics_endpoint.py
+├── Dockerfile.api
+├── Dockerfile.airflow
+├── docker-compose.yml
 ├── dvc.yaml
 ├── dvc.lock
 ├── .dvc/config
 ├── requirements.txt
+├── requirements-dev.txt
+├── requirements-ci.txt
 └── README.md
 ```
 

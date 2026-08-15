@@ -9,6 +9,7 @@ and response schemas.
 import pytest
 from fastapi.testclient import TestClient
 
+import api.main as api_main
 from api.filters import apply_filters, passes_filters
 from api.main import app
 from api.schemas import (
@@ -20,7 +21,23 @@ from api.schemas import (
     RecipeCandidate,
 )
 
-client = TestClient(app)
+
+@pytest.fixture
+def client(monkeypatch):
+    """
+    NOTE: this used to be a bare module-level `client = TestClient(app)`.
+    Without entering the ASGI lifespan context, the app's startup hook
+    (which calls the real `_load_champion_model()` against whatever
+    MLFLOW_TRACKING_URI is configured) could still fire on first request
+    and block indefinitely with no MLflow server reachable -- every test
+    in this file, even ones that never touch the model, would hang.
+
+    Patching the loader before entering the `with` block keeps these as
+    true unit/schema tests with no real network dependency.
+    """
+    monkeypatch.setattr(api_main, "_load_champion_model", lambda: None)
+    with TestClient(app) as c:
+        yield c
 
 
 # ---------------------------------------------------------------------
@@ -113,7 +130,7 @@ def test_filtering_excluded_ingredients():
 # API Endpoint Integration Tests
 # ---------------------------------------------------------------------
 
-def test_health_endpoint():
+def test_health_endpoint(client):
     response = client.get("/health")
     assert response.status_code == 200
     data = response.json()
@@ -122,13 +139,13 @@ def test_health_endpoint():
     assert data["model_name"] == "recipe-recommender"
 
 
-def test_predict_endpoint_empty_candidates_fails():
+def test_predict_endpoint_empty_candidates_fails(client):
     payload = {"candidates": []}
     response = client.post("/predict", json=payload)
     assert response.status_code == 422  # Unprocessable entity due to min_length=1
 
 
-def test_predict_endpoint_with_all_candidates_filtered():
+def test_predict_endpoint_with_all_candidates_filtered(client):
     payload = {
         "candidates": [
             {

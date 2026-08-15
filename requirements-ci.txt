@@ -1,0 +1,23 @@
+# CI-only requirement set. Deliberately excludes apache-airflow and
+# dvc[gs]/google-cloud-storage -- nothing under tests/ imports them (only
+# dags/*.py does, and DAG *definitions* aren't executed in CI, only tested
+# indirectly via the scripts they call). Installing the full requirements.txt
+# (including Airflow's notoriously strict/heavy pin set) would make every CI
+# run several minutes slower for no test coverage benefit.
+#
+# If you add a test that imports airflow or dvc directly, install
+# requirements.txt in full instead of this file.
+
+pandas>=2.0
+pandera>=0.20
+scikit-learn>=1.3
+numpy>=1.24
+matplotlib>=3.7
+xgboost>=2.0
+mlflow>=3.0
+joblib>=1.3
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.6
+
+-r requirements-dev.txt

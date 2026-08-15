@@ -22,3 +22,7 @@ mlartifacts/
 
 # Local trained model artifacts
 *.joblib
+
+# Generated monitoring outputs (regenerate with monitoring/*.py scripts)
+monitoring/drift_data/
+monitoring/reports/

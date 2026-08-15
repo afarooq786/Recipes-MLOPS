@@ -24,14 +24,16 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import Optional
 
 import mlflow
 import pandas as pd
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 
 from api.filters import apply_filters
+from api.metrics_middleware import RequestMetricsMiddleware, metrics_summary_response
 from api.schemas import (
     HealthResponse,
     PredictRequest,
@@ -80,6 +82,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(RequestMetricsMiddleware)
+
 
 def _get_model():
     model = _model_state.get("model")
@@ -103,6 +107,14 @@ def health() -> HealthResponse:
         model_alias=MODEL_ALIAS,
         model_loaded=_model_state.get("model") is not None,
     )
+
+
+@app.get("/metrics")
+def metrics():
+    """System monitoring endpoint (row 22): request volume, error rate, and
+    latency percentiles -- the same signals a Prometheus/Grafana panel would
+    show. See api/metrics_middleware.py for rationale."""
+    return metrics_summary_response()
 
 
 @app.post("/reload-model", response_model=HealthResponse)

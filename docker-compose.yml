@@ -22,7 +22,31 @@ services:
   # -------------------------------------------------------------------
   # MLflow Tracking & Model Registry Server
   # -------------------------------------------------------------------
+  # DISABLED BY DEFAULT (profiles: disabled). On at least one team
+  # member's machine, this exact command/version combo (MLflow 3.15.1,
+  # containerized) bound only to 127.0.0.1 inside the container despite
+  # --host 0.0.0.0, --allowed-hosts '*', and --workers 1 all being set --
+  # confirmed at the kernel socket level (/proc/net/tcp), not just from
+  # log messages. Root cause not identified; not a config mistake on our
+  # end (identical flags/version worked fine run directly, outside Docker).
+  #
+  # WORKAROUND IN USE: run MLflow directly on the host machine instead --
+  # it has direct access to the already-existing local mlflow.db /
+  # mlartifacts/ (which this container would NOT have had access to
+  # anyway, since those aren't in this container's volume) --
+  #
+  #   mlflow server --host 0.0.0.0 --port 5000 \
+  #     --backend-store-uri sqlite:///mlflow.db \
+  #     --default-artifact-root ./mlartifacts \
+  #     --allowed-hosts '*' --cors-allowed-origins '*'
+  #
+  # api/airflow-webserver/airflow-scheduler below point at
+  # http://host.docker.internal:5000 to reach it. To re-enable this
+  # containerized service once the bind issue is root-caused, remove
+  # the `profiles` line and switch the other services' MLFLOW_TRACKING_URI
+  # back to http://mlflow:5000.
   mlflow:
+    profiles: ["disabled"]
     image: python:3.10-slim
     container_name: recipe-mlflow
     command: >
@@ -30,8 +54,11 @@ services:
              mlflow server
              --host 0.0.0.0
              --port 5000
+             --workers 1
              --backend-store-uri sqlite:////mlflow/mlflow.db
-             --default-artifact-root /mlflow/artifacts"
+             --default-artifact-root /mlflow/artifacts
+             --allowed-hosts '*'
+             --cors-allowed-origins '*'"
     ports:
       - "5000:5000"
     volumes:
@@ -40,7 +67,8 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:5000/ || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 30s
 
   # -------------------------------------------------------------------
   # Airflow Database Initialization (One-shot task)
@@ -84,7 +112,7 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       RECIPE_PROJECT_DIR: /opt/airflow
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: http://host.docker.internal:5000
     volumes:
       - ./dags:/opt/airflow/dags
       - ./data:/opt/airflow/data
@@ -111,7 +139,7 @@ services:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-airflow}:${POSTGRES_PASSWORD:-airflow}@postgres:5432/${POSTGRES_DB:-airflow}
       AIRFLOW__CORE__LOAD_EXAMPLES: "False"
       RECIPE_PROJECT_DIR: /opt/airflow
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: http://host.docker.internal:5000
     volumes:
       - ./dags:/opt/airflow/dags
       - ./data:/opt/airflow/data
@@ -136,16 +164,13 @@ services:
     ports:
       - "8000:8000"
     environment:
-      MLFLOW_TRACKING_URI: http://mlflow:5000
+      MLFLOW_TRACKING_URI: http://host.docker.internal:5000
       MODEL_NAME: ${MODEL_NAME:-recipe-recommender}
       MODEL_ALIAS: ${MODEL_ALIAS:-champion}
     volumes:
-      - mlflow_data:/mlflow
       - ./models:/app/models
-    depends_on:
-      mlflow:
-        condition: service_healthy
 
 volumes:
   postgres_data:
   mlflow_data:
+  

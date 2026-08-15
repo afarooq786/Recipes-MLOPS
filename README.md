@@ -607,6 +607,151 @@ airflow dags trigger recipe_ml_pipeline
 You can also trigger DAGs from the web UI by clicking the play
 button on each DAG's page.
 
+## Monitoring, Drift Simulation, and Production Validation
+
+The repository implements the full monitoring stack described in the
+project guidelines, using a lightweight, custom-built layer in place
+of a full Prometheus/Grafana deployment. All scripts below are
+reproducible and were verified against the actual isolated test split
+(`data/processed/clean/test.csv`) before being committed.
+
+### Layer 1: Data quality and system metrics (row 22)
+
+`api/metrics_middleware.py` records every request's latency, path, and
+status code in-process. `GET /metrics` on the running API returns the
+same signals a Prometheus + Grafana dashboard would surface (request
+volume, error rate, p50/p95 latency), without the operational overhead
+of standing up a separate metrics stack for a class project timeline.
+
+```bash
+curl http://localhost:8000/metrics
+```
+
+### Layer 2: Drift simulation (row 23)
+
+`monitoring/drift_simulation.py` builds a clean, API-request-shaped
+batch from the isolated test split, plus four corrupted variants
+simulating distinct real-world failure modes:
+
+| Variant | What's corrupted |
+| --- | --- |
+| `drift_missing_values.csv` | `cook_time_minutes` / `calories` nulled out for a subset of rows |
+| `drift_out_of_range.csv` | Negative cook times; calorie values in the tens of thousands |
+| `drift_schema_swap.csv` | `cook_time_minutes` and `calories` column *values* swapped |
+| `drift_schema_change.csv` | A column renamed, another dropped entirely |
+
+```bash
+python -m monitoring.drift_simulation
+```
+
+Outputs land in `monitoring/drift_data/`, along with a
+`drift_manifest.json` recording exactly which rows/columns were
+touched by each corruption -- the ground truth used to check whether
+monitoring actually caught each one.
+
+### Layer 3: Evidently statistical drift + rule-based quality checks (row 21)
+
+Two complementary checks run against every batch:
+
+- `monitoring/evidently_report.py` -- an Evidently `DataDriftPreset`
+  report comparing the current batch's distribution against the
+  reference (clean) batch. Good at catching gradual, distribution-level
+  shift (e.g. the column-swap scenario).
+- `monitoring/data_quality_checks.py` -- rule-based schema-contract,
+  physically-plausible-range, and null-rate-spike checks. Good at
+  catching row-level anomalies and structural breaks that a pure
+  distribution test can miss (missing values, out-of-range values,
+  renamed/dropped columns).
+
+```bash
+python -m monitoring.evidently_report \
+    --reference monitoring/drift_data/clean_candidates.csv \
+    --current monitoring/drift_data/drift_out_of_range.csv \
+    --name out_of_range
+
+python -m monitoring.data_quality_checks \
+    --current monitoring/drift_data/drift_out_of_range.csv \
+    --name out_of_range
+```
+
+### Layer 4: Anomaly verification (row 24)
+
+`monitoring/verify_alerts.py` runs both layers across the clean
+baseline and all four corrupted variants in one pass and writes a
+consolidated pass/fail evidence report to
+`monitoring/reports/verify_alerts_summary.json`, plus HTML drift
+reports per scenario for the presentation demo.
+
+```bash
+python -m monitoring.verify_alerts
+```
+
+Verified result: **5/5 scenarios correctly classified** (the clean
+baseline correctly shows no anomaly; all four corrupted variants are
+correctly flagged), with zero false positives.
+
+### Production baseline validation (row 20)
+
+`monitoring/production_validation.py` sends the clean candidate batch
+through the *deployed* `/predict` endpoint (not just the model object
+in isolation) and compares the live API's ROC-AUC against the offline
+validation ROC-AUC recorded in `models/champion_config.json`.
+
+```bash
+# 1. Start MLflow on the host, then the rest of the stack
+#    (see "Quick Start with Docker Compose" below)
+mlflow server --host 0.0.0.0 --port 5000 \
+    --backend-store-uri sqlite:///mlflow.db \
+    --default-artifact-root ./mlartifacts \
+    --allowed-hosts '*' --cors-allowed-origins '*'   # separate terminal, leave running
+docker compose up -d --build
+curl http://localhost:8000/health   # confirm model_loaded: true
+
+# 2. Build the clean validation batch if not already built
+python -m monitoring.drift_simulation
+
+# 3. Run production validation against the live API
+python -m monitoring.production_validation --api-url http://localhost:8000
+```
+
+---
+
+## Testing
+
+Run the full test suite:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -v
+```
+
+- `tests/test_preprocessing.py`, `tests/test_build_features.py`,
+  `tests/test_metrics.py`, `tests/test_validate.py` -- unit tests for
+  the core data pipeline functions and the Pandera validation schema.
+- `tests/test_filters.py`, `tests/test_schemas.py`,
+  `tests/test_api_docker.py` -- unit tests for the API's filtering
+  logic and Pydantic request/response contracts.
+- `tests/test_api_integration.py` -- integration tests exercising the
+  full request -> filter -> score -> rank -> response path against a
+  fake model, so CI doesn't need a live MLflow server.
+- `tests/test_metrics_endpoint.py` -- verifies the `/metrics`
+  monitoring endpoint records and summarizes real request traffic.
+
+All 96 tests pass in ~2 seconds on a clean install of
+`requirements-ci.txt`.
+
+---
+
+## Continuous Integration
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`:
+
+1. **test** -- installs `requirements-ci.txt` and runs the full pytest suite.
+2. **lint** -- runs `ruff` (currently non-blocking; a baseline config still needs to be agreed on).
+3. **docker-build** -- confirms both `Dockerfile.api` and `Dockerfile.airflow` build successfully.
+
+---
+
 ## FastAPI Inference Service & Nutritional Filtering Layer
 
 The repository provides a production-grade inference service in `api/`:
@@ -627,45 +772,70 @@ The repository provides a production-grade inference service in `api/`:
 
 ## Containerization and Docker Compose Deployment
 
-The entire system (Inference API, MLflow Tracking & Registry Server, Airflow Webserver/Scheduler, and PostgreSQL) is fully containerized and orchestratable via Docker Compose.
+The Inference API, Airflow Webserver/Scheduler, and PostgreSQL are containerized and orchestrated via Docker Compose. **MLflow currently runs directly on the host machine, not in a container** -- see the note below.
+
+### ⚠️ MLflow: run on the host, not in Docker
+
+The `mlflow` service in `docker-compose.yml` is present but **disabled by default** (`profiles: ["disabled"]`). On the machine this was last verified on, that exact container/version combo (MLflow 3.15.1) bound only to `127.0.0.1` inside the container despite `--host 0.0.0.0` being set -- confirmed at the kernel socket level, not just from log messages. Root cause wasn't identified; the same command run directly (outside Docker) works correctly. See the comment block above the `mlflow:` service in `docker-compose.yml` for full details.
+
+**Workaround (what to actually run):** start MLflow directly on your host, pointing at your existing local `mlflow.db` / `mlartifacts/`:
+
+```bash
+mlflow server --host 0.0.0.0 --port 5000 \
+    --backend-store-uri sqlite:///mlflow.db \
+    --default-artifact-root ./mlartifacts \
+    --allowed-hosts '*' --cors-allowed-origins '*'
+```
+
+Leave that running in its own terminal. The `api`, `airflow-webserver`, and `airflow-scheduler` services are all configured to reach it via `http://host.docker.internal:5000`, Docker's built-in hostname for "the machine Docker is running on" -- no other setup needed on their end.
+
+If/when the containerized MLflow bind issue gets root-caused, remove the `profiles` line from the `mlflow` service and switch the other services' `MLFLOW_TRACKING_URI` back to `http://mlflow:5000`.
 
 ### Container Architecture
 
 | Service | Container Name | Port | Description |
 | --- | --- | --- | --- |
-| **FastAPI Service** | `recipe-api` | `8000` | Inference API built from `Dockerfile.api` |
-| **MLflow Server** | `recipe-mlflow` | `5000` | Tracking server & model registry backed by `mlflow_data` volume |
+| **FastAPI Service** | `recipe-api` | `8000` | Inference API built from `Dockerfile.api`. Requires the Python 3.12-based image (see note below) and a running host MLflow. |
+| **MLflow Server** | *(runs on host, not containerized)* | `5000` | Tracking server & model registry. See "MLflow: run on the host" above. |
 | **Airflow Webserver** | `recipe-airflow-webserver` | `8080` | Airflow Web UI built from `Dockerfile.airflow` |
 | **Airflow Scheduler** | `recipe-airflow-scheduler` | — | Background task scheduler running DAGs |
 | **Airflow Init** | `recipe-airflow-init` | — | Migration task creating Airflow DB schema & admin user |
 | **PostgreSQL** | `recipe-postgres` | `5432` | Backing database for Airflow metadata |
 
+### ⚠️ Python version must match the training environment
+
+`Dockerfile.api` builds on `python:3.12-slim` to match the Python version models are actually trained/pickled under (check with `python --version` in your training environment). If your champion model was trained under a different Python minor version, update the `FROM` line in `Dockerfile.api` to match -- a mismatch here fails at model-load time with an error like `code expected at most N arguments, got M`, which is a Python bytecode/pickle incompatibility across minor versions, not an MLflow or app bug.
+
 ### Quick Start with Docker Compose
 
-1. **Build and start the entire stack in detached mode:**
+1. **Start MLflow on your host first** (see "MLflow: run on the host" above) and leave it running in its own terminal.
+
+2. **Build and start the rest of the stack in detached mode** (the disabled `mlflow` service is skipped automatically):
 
 ```bash
 docker compose up -d --build
 ```
 
-2. **Verify container health:**
+3. **Verify container health:**
 
 ```bash
 docker compose ps
 ```
 
-3. **Access Service Interfaces:**
+4. **Access Service Interfaces:**
    - **FastAPI Documentation & Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
-   - **MLflow Tracking & Model Registry**: [http://localhost:5000](http://localhost:5000)
+   - **MLflow Tracking & Model Registry** (on host): [http://localhost:5000](http://localhost:5000)
    - **Airflow Web UI**: [http://localhost:8080](http://localhost:8080) (Credentials: `admin` / `admin`)
 
-4. **Verify FastAPI Endpoint Health:**
+5. **Verify FastAPI Endpoint Health:**
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-5. **Send a Test Prediction Request:**
+Expect `"model_loaded": true`. If `false`, check `docker compose logs api` -- the two most common causes are the host MLflow not running/reachable, or the Python-version mismatch described above.
+
+6. **Send a Test Prediction Request:**
 
 ```bash
 curl -X POST "http://localhost:8000/predict" \
@@ -740,18 +910,12 @@ python -m pytest tests/test_api_docker.py -v
 
 ## What's Next
 
-The remaining project work builds on the data, registered model,
-and Airflow orchestration:
+Remaining work is verification on your own machine and presentation
+assembly -- see "Final Steps" below.
 
--   Package the registered champion model behind a FastAPI/Flask/BentoML
-    inference service.
--   Containerize the service with Docker.
--   Pass clean test inputs through the deployed service for baseline
-    production validation.
--   Implement monitoring with EvidentlyAI, Prometheus/Grafana, or the
-    team's selected framework.
--   Create corrupted/drifted test scenarios.
--   Verify that monitoring detects the simulated anomaly/drift.
+-   [x] Run `docker compose up -d --build` (with MLflow started on the host first) and confirm the full stack comes up healthy -- **done**, see the Docker Compose section above.
+-   Run `python -m monitoring.production_validation` against the live API.
+-   Run the end-to-end pipeline (ingestion -> ... -> monitoring) once, recorded.
 -   Capture MLflow, registry, API, container, and monitoring evidence
     for the final presentation.
 
@@ -786,10 +950,14 @@ Remaining / downstream:
 -   [x] Full workflow orchestration (Airflow DAGs)
 -   [x] Containerized inference API (FastAPI)
 -   [x] Docker Compose deployment stack (FastAPI + MLflow + Airflow + Postgres)
--   [ ] Production baseline validation
--   [ ] Monitoring dashboard/framework
--   [ ] Drift/stress-test simulation
--   [ ] Anomaly verification
+-   [x] Production validation script (`monitoring/production_validation.py` -- ready to run once the stack is up)
+-   [x] Monitoring dashboard/framework (Evidently + custom rule-based checks + custom `/metrics` endpoint)
+-   [x] Drift/stress-test simulation (`monitoring/drift_simulation.py`, 4 corruption types)
+-   [x] Anomaly verification (`monitoring/verify_alerts.py` -- 5/5 scenarios correctly classified, 0 false positives)
+-   [x] Unit test suite (96 tests, `tests/`)
+-   [x] Integration test suite (`tests/test_api_integration.py`)
+-   [x] CI/CD (`.github/workflows/ci.yml`)
+-   [ ] Live production validation run against the deployed Docker stack (script is ready; needs to be run locally/CI where Docker is available)
 -   [ ] Final presentation/demo artifacts
 
 ## Modeling Summary

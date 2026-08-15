@@ -1,0 +1,88 @@
+{
+  "target": "rating >= 4",
+  "cv": "RepeatedStratifiedKFold: 5 folds x 10 repeats",
+  "test_set_used": false,
+  "results": {
+    "char_logistic": {
+      "mean_auc": 0.6276982564679416,
+      "std_auc": 0.09957458592954689,
+      "median_auc": 0.640255905511811,
+      "min_auc": 0.40382452193475815,
+      "max_auc": 0.8257874015748032,
+      "n_folds": 50
+    },
+    "word_logistic": {
+      "mean_auc": 0.6181552305961755,
+      "std_auc": 0.09219394707907448,
+      "median_auc": 0.6209223847019123,
+      "min_auc": 0.43757030371203604,
+      "max_auc": 0.8368953880764904,
+      "n_folds": 50
+    },
+    "char_svm": {
+      "mean_auc": 0.6062767154105736,
+      "std_auc": 0.10737701841706149,
+      "median_auc": 0.5968082114735658,
+      "min_auc": 0.3813273340832396,
+      "max_auc": 0.8149606299212598,
+      "n_folds": 50
+    },
+    "word_svm": {
+      "mean_auc": 0.6476743532058492,
+      "std_auc": 0.09359382254909848,
+      "median_auc": 0.6490438695163104,
+      "min_auc": 0.4353205849268842,
+      "max_auc": 0.8616422947131609,
+      "n_folds": 50
+    },
+    "logistic_blend_25char_75word": {
+      "mean_auc": 0.6223622047244095,
+      "std_auc": 0.09092658264900118,
+      "median_auc": 0.6226096737907763,
+      "min_auc": 0.4499437570303712,
+      "max_auc": 0.8368953880764904,
+      "n_folds": 50
+    },
+    "logistic_blend_50char_50word": {
+      "mean_auc": 0.6304780652418448,
+      "std_auc": 0.08805900687283753,
+      "median_auc": 0.6220472440944882,
+      "min_auc": 0.484814398200225,
+      "max_auc": 0.8346456692913387,
+      "n_folds": 50
+    },
+    "logistic_blend_75char_25word": {
+      "mean_auc": 0.6412457817772779,
+      "std_auc": 0.08545159687084462,
+      "median_auc": 0.6313273340832396,
+      "min_auc": 0.49943757030371205,
+      "max_auc": 0.84251968503937,
+      "n_folds": 50
+    },
+    "svm_blend_50char_50word": {
+      "mean_auc": 0.6401940382452193,
+      "std_auc": 0.10156213585750823,
+      "median_auc": 0.6263006186726658,
+      "min_auc": 0.4714566929133858,
+      "max_auc": 0.8449803149606299,
+      "n_folds": 50
+    },
+    "char_logistic_plus_word_svm": {
+      "mean_auc": 0.6810390888638921,
+      "std_auc": 0.0896979152875331,
+      "median_auc": 0.6687992125984252,
+      "min_auc": 0.49212598425196846,
+      "max_auc": 0.8700787401574803,
+      "n_folds": 50
+    },
+    "char_svm_plus_word_svm_plus_char_logistic": {
+      "mean_auc": 0.6657241282339708,
+      "std_auc": 0.10325261632030791,
+      "median_auc": 0.6580075928008999,
+      "min_auc": 0.4201349831271092,
+      "max_auc": 0.8671259842519685,
+      "n_folds": 50
+    }
+  },
+  "winner": "char_logistic_plus_word_svm"
+}

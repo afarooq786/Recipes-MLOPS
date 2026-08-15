@@ -1,0 +1,169 @@
+{
+  "target": "rating >= 4",
+  "test_set_used": false,
+  "individual_model_params": {
+    "char_logistic": {
+      "model__C": 3.0,
+      "model__class_weight": null,
+      "model__penalty": "l1",
+      "tfidf__min_df": 3,
+      "tfidf__ngram_range": [
+        3,
+        5
+      ],
+      "tfidf__sublinear_tf": true
+    },
+    "word_logistic": {
+      "model__C": 10.0,
+      "model__class_weight": "balanced",
+      "model__penalty": "l2",
+      "tfidf__min_df": 3,
+      "tfidf__ngram_range": [
+        1,
+        3
+      ],
+      "tfidf__sublinear_tf": false
+    },
+    "char_svm": {
+      "model__C": 0.03,
+      "model__class_weight": "balanced",
+      "tfidf__min_df": 2,
+      "tfidf__ngram_range": [
+        2,
+        4
+      ],
+      "tfidf__sublinear_tf": false
+    },
+    "word_svm": {
+      "model__C": 10.0,
+      "model__class_weight": null,
+      "tfidf__min_df": 3,
+      "tfidf__ngram_range": [
+        1,
+        3
+      ],
+      "tfidf__sublinear_tf": true
+    }
+  },
+  "cv_results": [
+    {
+      "model": "word_svm",
+      "mean_fold_auc": 0.6476743532058492,
+      "std_fold_auc": 0.09359382254909848,
+      "median_fold_auc": 0.6490438695163104,
+      "oof_auc": 0.6679719089167908
+    },
+    {
+      "model": "logistic_blend_char_0.75",
+      "mean_fold_auc": NaN,
+      "std_fold_auc": NaN,
+      "median_fold_auc": NaN,
+      "oof_auc": 0.6451585443711427
+    },
+    {
+      "model": "logistic_blend_char_0.50",
+      "mean_fold_auc": NaN,
+      "std_fold_auc": NaN,
+      "median_fold_auc": NaN,
+      "oof_auc": 0.6355394764843584
+    },
+    {
+      "model": "rank_all_four",
+      "mean_fold_auc": NaN,
+      "std_fold_auc": NaN,
+      "median_fold_auc": NaN,
+      "oof_auc": 0.6283464566929133
+    },
+    {
+      "model": "logistic_blend_char_0.25",
+      "mean_fold_auc": NaN,
+      "std_fold_auc": NaN,
+      "median_fold_auc": NaN,
+      "oof_auc": 0.6282187699510534
+    },
+    {
+      "model": "word_logistic",
+      "mean_fold_auc": 0.6181552305961755,
+      "std_fold_auc": 0.09219394707907448,
+      "median_fold_auc": 0.6209223847019123,
+      "oof_auc": 0.6231538625239413
+    },
+    {
+      "model": "rank_char_logistic_plus_char_svm",
+      "mean_fold_auc": NaN,
+      "std_fold_auc": NaN,
+      "median_fold_auc": NaN,
+      "oof_auc": 0.6156841881251329
+    },
+    {
+      "model": "char_svm",
+      "mean_fold_auc": 0.6062767154105736,
+      "std_fold_auc": 0.10737701841706149,
+      "median_fold_auc": 0.5968082114735658,
+      "oof_auc": 0.6119599914875504
+    },
+    {
+      "model": "char_logistic",
+      "mean_fold_auc": 0.6276982564679416,
+      "std_fold_auc": 0.09957458592954689,
+      "median_fold_auc": 0.640255905511811,
+      "oof_auc": 0.580634177484571
+    }
+  ],
+  "validation_results": [
+    {
+      "model": "char_svm",
+      "validation_roc_auc": 0.78125,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "rank_char_logistic_plus_char_svm",
+      "validation_roc_auc": 0.7803308823529411,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "rank_all_four",
+      "validation_roc_auc": 0.7573529411764706,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "char_logistic",
+      "validation_roc_auc": 0.6976102941176471,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "word_logistic",
+      "validation_roc_auc": 0.6829044117647058,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "logistic_blend_char_0.25",
+      "validation_roc_auc": 0.6801470588235294,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "logistic_blend_char_0.50",
+      "validation_roc_auc": 0.6755514705882353,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "word_svm",
+      "validation_roc_auc": 0.6681985294117647,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    },
+    {
+      "model": "logistic_blend_char_0.75",
+      "validation_roc_auc": 0.6663602941176471,
+      "validation_precision_at_5": 1.0,
+      "validation_grouped_precision_at_5": 0.9449404761904762
+    }
+  ]
+}

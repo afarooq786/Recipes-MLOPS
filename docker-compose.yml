@@ -170,6 +170,31 @@ services:
     volumes:
       - ./models:/app/models
 
+  # -------------------------------------------------------------------
+  # Streamlit Monitoring Dashboard
+  # -------------------------------------------------------------------
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile.dashboard
+    container_name: recipe-dashboard
+    ports:
+      - "8501:8501"
+    environment:
+      API_URL: http://api:8000
+    volumes:
+      - ./data:/app/data
+      - ./models:/app/models
+      - ./monitoring:/app/monitoring
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
 volumes:
   postgres_data:
   mlflow_data:

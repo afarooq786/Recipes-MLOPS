@@ -5,7 +5,7 @@ label,score,cuisine_path
 1,0.9528895233148255,/Desserts/Cakes/Shortcake Recipes/Strawberry Shortcake Recipes/
 1,0.9406430631899696,/Desserts/Cakes/Pound Cake Recipes/
 1,0.9371740676322133,/Salad/Fruit Salad Recipes/
-1,0.9456388266345883,/Desserts/Custards and Puddings/Rice/
+1,0.9456388266345885,/Desserts/Custards and Puddings/Rice/
 1,0.934449929653587,/Side Dish/Sauces and Condiments/Canning and Preserving Recipes/Jams and Jellies Recipes/
 1,0.9453826380590148,/Cuisine/Latin American/Caribbean/
 1,0.9375949492413775,/Appetizers and Snacks/Dips and Spreads Recipes/Salsa Recipes/Avocado Salsa Recipes/
@@ -48,7 +48,7 @@ label,score,cuisine_path
 1,0.9486542999175084,/Side Dish/Casseroles/
 1,0.9457503224818153,/Desserts/Specialty Dessert Recipes/Bread Pudding Recipes/
 1,0.945987224679888,/Desserts/Pies/Custard and Cream Pies/Pineapple Pie/
-1,0.958713172295548,/Main Dishes/Meatball Recipes/
+1,0.9587131722955478,/Main Dishes/Meatball Recipes/
 1,0.9440189293723028,/Desserts/Frozen Dessert Recipes/Ice Cream/
 1,0.9493083286221826,/Side Dish/Sauces and Condiments/Chutney Recipes/
 1,0.9330297226777218,/Appetizers and Snacks/Snacks/Kids/Healthy/
@@ -71,7 +71,7 @@ label,score,cuisine_path
 1,0.9501667546130617,/Desserts/Pies/Fruit Pies/Rhubarb Pie Recipes/
 1,0.9360792905640549,/Appetizers and Snacks/Snacks/Energy Ball Recipes/
 1,0.933733839467989,/Desserts/Fruit Desserts/Peach Dessert Recipes/
-1,0.9444617346901225,/Drinks Recipes/Smoothie Recipes/Banana/
+1,0.9444617346901224,/Drinks Recipes/Smoothie Recipes/Banana/
 1,0.9435212883466674,/Cuisine/European/French/
 1,0.9518829682457649,/Bread/Quick Bread Recipes/Scone Recipes/
 0,0.9383016005701836,/Side Dish/Sauces and Condiments/Chutney Recipes/
@@ -122,7 +122,7 @@ label,score,cuisine_path
 1,0.924798934486716,/Side Dish/Sauces and Condiments/Sauces/
 1,0.9467825404341521,/Breakfast and Brunch/Breakfast Bread Recipes/
 1,0.947158093235664,/Main Dishes/Rice/Risotto Recipes/
-1,0.9524281116733784,/Bread/Quick Bread Recipes/Zucchini Bread Recipes/
+1,0.9524281116733786,/Bread/Quick Bread Recipes/Zucchini Bread Recipes/
 1,0.948025250269166,/Desserts/Fruit Desserts/Banana Dessert Recipes/
 1,0.9447824535763045,/Breakfast and Brunch/Cereals/Oatmeal Recipes/
 1,0.9487433571650641,/Desserts/Cakes/Pineapple Cake Recipes/

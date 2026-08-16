@@ -108,6 +108,33 @@ def _promote_model(**context):
         logger.warning("Candidate run %s has no validation_roc_auc metric. Skipping.", run_id)
         return "skipped — missing validation metric"
 
+    # ---- Bootstrap check: does THIS person's local registry already
+    # have a champion at all? ----
+    # champion_config.json is committed to git and reflects whoever's
+    # training run set the current benchmark -- it is NOT specific to
+    # any one person's local MLflow registry (each teammate's registry
+    # is local-only, per the README). Without this check, a brand-new
+    # contributor with an empty local registry would have to beat that
+    # committed benchmark on their very first run just to get ANY
+    # champion registered locally -- a real coin-flip given this model's
+    # own documented run-to-run noise (repeated_cv_std_roc_auc ~ 0.09),
+    # and a silent failure (no error, just "skipped") if they lose it.
+    has_local_champion = True
+    try:
+        client.get_model_version_by_alias(registered_model_name, champion_alias)
+    except Exception:
+        has_local_champion = False
+
+    if not has_local_champion:
+        logger.info(
+            "No champion registered in this local MLflow registry yet -- "
+            "treating this as a bootstrap run and promoting unconditionally, "
+            "regardless of the committed champion_config.json benchmark "
+            "(%s=%.4f).",
+            metric_key, current_best,
+        )
+        current_best = 0.0  # bypass the gate below for this run only
+
     logger.info(
         "Candidate validation_roc_auc=%.4f  vs  champion %s=%.4f",
         candidate_value, metric_key, current_best,

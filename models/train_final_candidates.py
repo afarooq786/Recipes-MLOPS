@@ -210,7 +210,7 @@ def build_char_logistic() -> Pipeline:
                 "model",
                 LogisticRegression(
                     C=3.0,
-                    penalty="l1",
+                    l1_ratio=1,
                     class_weight=None,
                     solver="liblinear",
                     max_iter=5000,

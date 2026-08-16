@@ -40,6 +40,18 @@ Notes on the MLflow startup below:
       public internet or a browser from another origin), disabling it is
       an acceptable tradeoff for local dev. Revisit this if you ever
       expose this server beyond localhost.
+
+Notes on Stage 2 (training) below:
+    - train_final_candidates and register_best_model specifically run
+      inside a Linux container (via `docker compose run api ...`), not
+      native Windows Python. MLflow bakes the relative artifact path into
+      the model manifest using whatever OS ran the logging step -- on
+      native Windows that means backslashes, which break model loading
+      inside the Linux API container later at serve time ("No such file
+      or directory: ...\char_logistic.joblib"). The earlier candidate-
+      comparison scripts (train_logistic, train_xgboost, train_challengers,
+      ensemble_stability) only log experiment-tracking metrics/artifacts
+      that are never deployed, so they're safe to leave on native Windows.
 #>
 
 param(
@@ -352,19 +364,38 @@ else {
         Die "ensemble_stability failed"
     }
 
-    python -m models.train_final_candidates
+    # train_final_candidates and register_best_model produce/register the
+    # actual deployed champion model. Run these two specifically inside a
+    # Linux container so MLflow bakes forward-slash artifact paths into
+    # the model manifest instead of Windows backslashes -- see the note
+    # at the top of this script for why that matters.
+
+    Info "Building the api image (needed to train inside Linux)..."
+
+    docker compose build api
 
     if ($LASTEXITCODE -ne 0) {
-        Die "train_final_candidates failed"
+        Die "docker compose build api failed"
     }
 
-    python -m models.register_best_model
+    docker compose run --rm `
+        -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 `
+        -v "${PWD}/data:/app/data" `
+        api python -m models.train_final_candidates
 
     if ($LASTEXITCODE -ne 0) {
-        Die "register_best_model failed"
+        Die "train_final_candidates failed (containerized)"
     }
 
-    Ok "Champion model registered"
+    docker compose run --rm `
+        -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 `
+        api python -m models.register_best_model
+
+    if ($LASTEXITCODE -ne 0) {
+        Die "register_best_model failed (containerized)"
+    }
+
+    Ok "Champion model registered (trained inside Linux container -- no Windows path bug)"
 }
 
 # ---------------------------------------------------------------------

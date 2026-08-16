@@ -65,6 +65,8 @@ recipe-mlops/
 │   ├── production_validation.py
 │   ├── drift_data/         (generated -- gitignored)
 │   └── reports/            (generated -- gitignored)
+├── scripts/
+│   └── run_full_pipeline.ps1
 ├── tests/
 │   ├── test_preprocessing.py
 │   ├── test_build_features.py
@@ -478,6 +480,34 @@ python -m models.register_best_model
 
 The test split should remain untouched during these steps.
 
+> **⚠️ Run steps 6's `train_final_candidates` and step 7's
+> `register_best_model` inside a Linux environment, not native Windows
+> Python.** MLflow bakes the operating system's path separator into the
+> model's artifact manifest at logging time, so a Windows-native run
+> permanently breaks model loading inside the Linux API container later
+> (`No such file or directory: ...\char_logistic.joblib`). The earlier
+> candidate-comparison scripts (`train_logistic`, `train_xgboost`,
+> `train_challengers`, `ensemble_stability`) only log experiment-tracking
+> metrics/artifacts that are never deployed, so those are safe to run on
+> native Windows. On Windows, run the two deploy-affecting steps like
+> this instead:
+>
+> ``` bash
+> docker compose build api
+>
+> docker compose run --rm \
+>     -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
+>     -v "$(pwd)/data:/app/data" \
+>     api python -m models.train_final_candidates
+>
+> docker compose run --rm \
+>     -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
+>     api python -m models.register_best_model
+> ```
+>
+> `scripts/run_full_pipeline.ps1` does this automatically -- see
+> "Running the Full Pipeline with One Script" below.
+
 ### Champion Benchmark and Promotion
 
 Because the project currently uses a local MLflow server, each developer's MLflow
@@ -510,6 +540,18 @@ current champion under the same evaluation methodology and passes the project's 
 checks. If promoted, the new model should be registered as a new MLflow model version, the
 `champion` alias should be moved to that version, and `champion_config.json` should be
 updated to record the new approved benchmark.
+
+**Exception -- bootstrap check for a fresh local registry:** if your own
+local MLflow registry has no `champion` alias set yet (e.g. a brand new
+clone), the Airflow-triggered `promote_model` task promotes the very
+first candidate run automatically, regardless of the committed
+benchmark in `champion_config.json`. This avoids forcing a new
+contributor to beat the existing benchmark on their very first run just
+to get any champion registered locally. Once a local champion exists,
+the normal "must improve on the committed metric" gate applies as
+described above. This exception only affects the Airflow-automated
+promotion path -- the manual `register_best_model.py` path doesn't gate
+on anything and is unaffected either way.
 
 This design allows the team to use local MLflow instances during development while still
 maintaining a shared, version-controlled definition of the currently approved model.
@@ -558,6 +600,12 @@ Handles preprocessing through model promotion.
 preprocess → feature_engineering → train_candidates → evaluate_and_log → promote_model
 ```
 
+Because these `BashOperator` tasks run inside the `airflow-scheduler`
+container (Linux), triggering the pipeline through Airflow -- rather
+than running `train_final_candidates`/`register_best_model` by hand on
+Windows -- is also the safest way to avoid the Windows artifact-path
+issue described above.
+
 ### Model promotion gate
 
 The `promote_model` task implements a conditional promotion check
@@ -567,7 +615,10 @@ that prevents regressions from being deployed:
 2. Finds the latest finished `ensemble_text_champion` run in MLflow.
 3. Compares the candidate's `validation_roc_auc` against the champion's
    `selection_metric_value`.
-4. **Promotes only if the candidate improves the metric.**
+4. **Promotes only if the candidate improves the metric** -- unless this
+   is the first promotion attempt against an empty local registry, in
+   which case it promotes unconditionally (see the bootstrap exception
+   above).
 5. On promotion: registers a new MLflow model version, moves the `champion`
    alias, and updates `champion_config.json`.
 6. On skip: logs the decision and exits cleanly — no changes are made.
@@ -841,6 +892,33 @@ If/when the containerized MLflow bind issue gets root-caused, remove the `profil
 
 `Dockerfile.api` builds on `python:3.12-slim` to match the Python version models are actually trained/pickled under (check with `python --version` in your training environment). If your champion model was trained under a different Python minor version, update the `FROM` line in `Dockerfile.api` to match -- a mismatch here fails at model-load time with an error like `code expected at most N arguments, got M`, which is a Python bytecode/pickle incompatibility across minor versions, not an MLflow or app bug.
 
+### Running the Full Pipeline with One Script
+
+On Windows, `scripts/run_full_pipeline.ps1` runs the entire flow above
+start to finish in one command: checks prerequisites (Docker, Python,
+MLflow, port availability), starts or reuses MLflow on the host, trains
+and registers the champion model **inside the `api` container** (so the
+Windows artifact-path issue described earlier in this README can't
+recur), builds and starts the Docker Compose stack, verifies
+`/health` reports `model_loaded: true`, runs the monitoring pipeline
+(drift simulation, alert verification, production validation), and
+runs the test suite.
+
+```powershell
+.\scripts\run_full_pipeline.ps1
+
+# Reuse an already-registered champion instead of retraining:
+.\scripts\run_full_pipeline.ps1 -SkipTraining
+
+# Skip the pytest run at the end:
+.\scripts\run_full_pipeline.ps1 -SkipTests
+```
+
+Note: the script does **not** trigger the Airflow DAGs for you -- after
+it finishes, trigger `recipe_data_pipeline` and then `recipe_ml_pipeline`
+manually from the Airflow UI (`http://localhost:8080`, `admin`/`admin`)
+or via `airflow dags trigger`, as described above.
+
 ### Quick Start with Docker Compose
 
 1. **Start MLflow on your host first** (see "MLflow: run on the host" above) and leave it running in its own terminal.
@@ -868,7 +946,7 @@ docker compose ps
 curl http://localhost:8000/health
 ```
 
-Expect `"model_loaded": true`. If `false`, check `docker compose logs api` -- the two most common causes are the host MLflow not running/reachable, or the Python-version mismatch described above.
+Expect `"model_loaded": true`. If `false`, check `docker compose logs api` -- the most common causes are the host MLflow not running/reachable, the champion model having been trained natively on Windows (see the Windows path-separator warning earlier in this README), or the Python-version mismatch described above.
 
 6. **Send a Test Prediction Request:**
 
@@ -949,8 +1027,8 @@ Remaining work is verification on your own machine and presentation
 assembly -- see "Final Steps" below.
 
 -   [x] Run `docker compose up -d --build` (with MLflow started on the host first) and confirm the full stack comes up healthy -- **done**, see the Docker Compose section above.
--   Run `python -m monitoring.production_validation` against the live API.
--   Run the end-to-end pipeline (ingestion -> ... -> monitoring) once, recorded.
+-   [x] Run `python -m monitoring.production_validation` against the live API.
+-   [x] Run the end-to-end pipeline (ingestion -> ... -> monitoring) once, via the Airflow DAGs, recorded.
 -   Capture MLflow, registry, API, container, and monitoring evidence
     for the final presentation.
 
@@ -985,14 +1063,14 @@ Remaining / downstream:
 -   [x] Full workflow orchestration (Airflow DAGs)
 -   [x] Containerized inference API (FastAPI)
 -   [x] Docker Compose deployment stack (FastAPI + MLflow + Airflow + Postgres)
--   [x] Production validation script (`monitoring/production_validation.py` -- ready to run once the stack is up)
+-   [x] Production validation script (`monitoring/production_validation.py`)
 -   [x] Monitoring dashboard/framework (Evidently + custom rule-based checks + custom `/metrics` endpoint)
 -   [x] Drift/stress-test simulation (`monitoring/drift_simulation.py`, 4 corruption types)
 -   [x] Anomaly verification (`monitoring/verify_alerts.py` -- 5/5 scenarios correctly classified, 0 false positives)
 -   [x] Unit test suite (96 tests, `tests/`)
 -   [x] Integration test suite (`tests/test_api_integration.py`)
 -   [x] CI/CD (`.github/workflows/ci.yml`)
--   [ ] Live production validation run against the deployed Docker stack (script is ready; needs to be run locally/CI where Docker is available)
+-   [x] Live production validation run against the deployed Docker stack
 -   [ ] Final presentation/demo artifacts
 
 ## Modeling Summary

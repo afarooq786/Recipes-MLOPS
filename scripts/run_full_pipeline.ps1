@@ -3,7 +3,8 @@ scripts/run_full_pipeline.ps1
 
 Brings up the full Recipe MLOps stack end-to-end:
 host MLflow, model training/registration (optional), Docker Compose
-(API + Airflow + Postgres), monitoring/validation pipeline, and tests.
+(API + Dashboard + Webapp + Airflow + Postgres), monitoring/validation
+pipeline, and tests.
 
 Usage:
 
@@ -52,6 +53,18 @@ Notes on Stage 2 (training) below:
       comparison scripts (train_logistic, train_xgboost, train_challengers,
       ensemble_stability) only log experiment-tracking metrics/artifacts
       that are never deployed, so they're safe to leave on native Windows.
+
+Notes on Wait-ForHttp below:
+    - Wait-ForHttp returns the successful HttpWebResponse object itself
+      (not just $true/$false) so callers that need the response body
+      (e.g. the API /health JSON in Stage 3) can reuse the exact response
+      that proved the service was up, instead of making a second,
+      retry-less Invoke-WebRequest call immediately afterward. That
+      second call used to have no retries and only a 5s timeout, so a
+      single transient blip right after `docker compose up` (container
+      port accepting connections a beat before Uvicorn was fully ready)
+      would kill the whole script even though the API was fine a moment
+      later. Callers that don't need the body just check for $null.
 #>
 
 param(
@@ -65,6 +78,8 @@ $MLFLOW_PID_FILE = ".mlflow.pid"
 $MLFLOW_URL = "http://localhost:5000"
 $API_URL = "http://localhost:8000"
 $AIRFLOW_URL = "http://localhost:8080"
+$DASHBOARD_URL = "http://localhost:8501"
+$WEBAPP_URL = "http://localhost:8502"
 
 # ---------------------------------------------------------------------
 # Helpers
@@ -114,6 +129,8 @@ function Wait-ForHttp {
         [int]$MaxAttempts = 30
     )
 
+    # Returns the successful HttpWebResponse object on success (so callers
+    # can reuse it, e.g. to read the body) or $null if it never came up.
     for ($Attempt = 1; $Attempt -le $MaxAttempts; $Attempt++) {
 
         try {
@@ -125,7 +142,7 @@ function Wait-ForHttp {
 
             if ($Response.StatusCode -ge 200 -and $Response.StatusCode -lt 500) {
                 Ok "$Label is up (attempt $Attempt/$MaxAttempts)"
-                return $true
+                return $Response
             }
         }
         catch {
@@ -135,7 +152,7 @@ function Wait-ForHttp {
         Start-Sleep -Seconds 10
     }
 
-    return $false
+    return $null
 }
 
 function Get-Port5000Listeners {
@@ -318,7 +335,7 @@ catch {
         Info "MLflow stdout: $MLflowStdout"
         Info "MLflow stderr: $MLflowStderr"
 
-        if (-not (Wait-ForHttp $MLFLOW_URL "MLflow" 12)) {
+        if ($null -eq (Wait-ForHttp $MLFLOW_URL "MLflow" 12)) {
             Die "MLflow did not come up after 2 minutes. Check mlflow_stdout.log and mlflow_stderr.log for errors."
         }
     }
@@ -412,24 +429,16 @@ if ($LASTEXITCODE -ne 0) {
 
 Info "Waiting for the API to report healthy..."
 
-if (-not (Wait-ForHttp "$API_URL/health" "API" 12)) {
+# Reuse the response that proves the API is up instead of making a second,
+# retry-less call right after -- see the Wait-ForHttp note at the top of
+# this file for why that used to fail intermittently.
+$HealthResponse = Wait-ForHttp "$API_URL/health" "API" 12
+
+if ($null -eq $HealthResponse) {
     Die "API did not come up. Run: docker compose logs api"
 }
 
-try {
-
-    $HealthResponse = Invoke-WebRequest `
-        -Uri "$API_URL/health" `
-        -UseBasicParsing `
-        -TimeoutSec 5 `
-        -ErrorAction Stop
-
-    $HealthJson = $HealthResponse.Content
-
-}
-catch {
-    Die "Could not retrieve API health response."
-}
+$HealthJson = $HealthResponse.Content
 
 if ($HealthJson -match '"model_loaded"\s*:\s*true') {
 
@@ -471,7 +480,7 @@ See README.md for additional details.
 
 Info "Waiting for Airflow webserver..."
 
-if (-not (Wait-ForHttp "$AIRFLOW_URL/health" "Airflow webserver" 18)) {
+if ($null -eq (Wait-ForHttp "$AIRFLOW_URL/health" "Airflow webserver" 18)) {
     Die "Airflow webserver did not come up. Run: docker compose logs airflow-webserver"
 }
 
@@ -530,9 +539,11 @@ else {
 Info "Pipeline complete."
 
 Write-Host ""
-Write-Host "  MLflow:  $MLFLOW_URL"
-Write-Host "  API:     $API_URL/docs"
-Write-Host "  Airflow: $AIRFLOW_URL  (admin / admin)"
+Write-Host "  MLflow:     $MLFLOW_URL"
+Write-Host "  API:        $API_URL/docs"
+Write-Host "  Airflow:    $AIRFLOW_URL  (admin / admin)"
+Write-Host "  Dashboard:  $DASHBOARD_URL"
+Write-Host "  Webapp:     $WEBAPP_URL"
 Write-Host ""
 Write-Host "  Airflow DAGs still need to be triggered manually from the UI."
 Write-Host ""

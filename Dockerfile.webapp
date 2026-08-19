@@ -1,0 +1,26 @@
+# Matches the Python version in Dockerfile.api -- keep these in sync since
+# webapp/pipeline_adapter.py imports preprocessing/preprocess.py and
+# features/build_features.py directly (validation, text cleaning, and
+# dietary-tag heuristics run in-process, not just via HTTP calls to the API).
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Install project deps + streamlit. requirements.txt covers pandas/requests
+# (used by pipeline_adapter.py); streamlit lives in requirements-dev.txt
+# alongside pytest.
+COPY requirements.txt requirements-dev.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
+
+# Full repo copy (same pattern as Dockerfile.dashboard) so
+# `from preprocessing.preprocess import ...` and
+# `from features.build_features import ...` resolve the same way they do
+# when running standalone from the repo root. .dockerignore keeps this
+# lean (.venv, .git, data/, mlartifacts/ etc. are excluded at build time --
+# data/ is volume-mounted at runtime instead, see docker-compose.yml).
+COPY . .
+
+EXPOSE 8502
+
+CMD ["streamlit", "run", "webapp/app.py", \
+     "--server.address=0.0.0.0", "--server.port=8502"]

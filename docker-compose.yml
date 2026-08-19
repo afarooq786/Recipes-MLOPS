@@ -195,7 +195,36 @@ services:
       retries: 5
       start_period: 15s
 
+  # -------------------------------------------------------------------
+  # Streamlit Consumer Webapp (SavorAI Culinary Studio)
+  # -------------------------------------------------------------------
+  # Consumer-facing recipe evaluator and menu ranker. Distinct from the
+  # `dashboard` service above: dashboard is the team's internal monitoring
+  # view (system health, drift, verify_alerts); webapp is the product-facing
+  # demo of the model itself (single-recipe scoring + batch menu ranking).
+  # Calls the live api service's /predict endpoint for real inference, with
+  # a local heuristic fallback (see pipeline_adapter.py) if the API is
+  # unreachable, so the demo still works standalone.
+  webapp:
+    build:
+      context: .
+      dockerfile: Dockerfile.webapp
+    container_name: recipe-webapp
+    ports:
+      - "8502:8502"
+    environment:
+      API_URL: http://api:8000
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8502/_stcore/health')\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
 volumes:
   postgres_data:
   mlflow_data:
-  

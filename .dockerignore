@@ -1,0 +1,13 @@
+@"
+.venv/
+.git/
+data/
+mlartifacts/
+mlflow.db
+monitoring/drift_data/
+monitoring/reports/
+__pycache__/
+*.csv
+*.pyc
+.pytest_cache/
+"@ | Out-File -Encoding utf8 .dockerignore

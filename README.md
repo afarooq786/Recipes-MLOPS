@@ -1,9 +1,12 @@
-Recipe Recommender --- MLOps Pipeline
+# Recipe Recommender — MLOps Pipeline
+
 An open-source recipe recommendation system that predicts whether a recipe will be positively rated (rating ≥ 4), built as a full MLOps pipeline: data ingestion → validation → versioning → feature engineering → training → experiment tracking → model registry → deployment → monitoring.
 
-This README documents the full pipeline currently implemented in the repository: data ingestion, validation, splitting, versioning, preprocessing, feature engineering, baseline, evaluation, model-training, experiment-tracking, model-registry, Airflow orchestration, containerized deployment (FastAPI + Docker Compose), a live monitoring dashboard (Streamlit), and production monitoring (drift simulation, Evidently + rule-based data quality checks, and a custom /metrics endpoint). The full local pipeline has been run end-to-end and verified -- see the Status section near the bottom.
+This README documents the full pipeline currently implemented in the repository: data ingestion, validation, splitting, versioning, preprocessing, feature engineering, baseline, evaluation, model-training, experiment-tracking, model-registry, Airflow orchestration, containerized deployment (FastAPI + Docker Compose), a live monitoring dashboard (Streamlit), and production monitoring (drift simulation, Evidently + rule-based data quality checks, and a custom `/metrics` endpoint). The full local pipeline has been run end-to-end and verified — see the [Status](#status) section near the bottom.
 
-Project Structure
+## Project Structure
+
+```
 recipe-mlops/
 ├── .github/
 │   └── workflows/
@@ -49,8 +52,8 @@ recipe-mlops/
 │   ├── data_quality_checks.py
 │   ├── verify_alerts.py
 │   ├── production_validation.py
-│   ├── drift_data/         (generated -- gitignored)
-│   └── reports/            (generated -- gitignored)
+│   ├── drift_data/    (generated — gitignored)
+│   └── reports/       (generated — gitignored)
 ├── scripts/
 │   └── run_full_pipeline.ps1
 ├── tests/
@@ -88,408 +91,516 @@ recipe-mlops/
 ├── requirements-dev.txt
 ├── requirements-ci.txt
 └── README.md
+```
 
-Setup
+## Setup
+
 Clone the repo and create a virtual environment:
+
+```bash
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
+```
 
-requirements-dev.txt is required for local development -- it includes pytest (the test suite) and streamlit (the monitoring dashboard), neither of which are in the lean requirements.txt used by the deployed containers.
+`requirements-dev.txt` is required for local development — it includes `pytest` (the test suite) and `streamlit` (the monitoring dashboard), neither of which are in the lean `requirements.txt` used by the deployed containers.
 
-Kaggle credentials are only needed to run data/ingest.py directly. They are not needed if pulling already-versioned data with DVC.
+Kaggle credentials are only needed to run `data/ingest.py` directly. They are not needed if pulling already-versioned data with DVC.
 
-GCP access is needed for dvc pull / dvc push.
+GCP access is needed for `dvc pull` / `dvc push`. Ask the project owner for access to the shared GCP project and DVC remote, then authenticate with the Google Cloud CLI.
 
-Ask the project owner for access to the shared GCP project and DVC remote, then authenticate with the Google Cloud CLI.
+See `docs/Recipe_MLOps_Data_Infrastructure_Handoff.pdf` for the full walkthrough if present in your checkout.
 
-See docs/Recipe_MLOps_Data_Infrastructure_Handoff.pdf for the full walkthrough if present in your checkout.
+## Reproducing the Data Pipeline Locally
 
-Reproducing the Data Pipeline Locally
 Once setup is complete, run:
 
+```bash
 dvc repro
+```
 
 The data pipeline performs:
 
-Step Stage Script What it does
+| Step | Stage | Script | What it does |
+|------|-------|--------|---------------|
+| 1 | Ingestion | `data/ingest.py` | Downloads the source recipe data. |
+| 2 | Validation | `data/validate.py` | Validates required schema, data types, null rules, and allowed ranges and writes validation reports. |
+| 3 | Split | `data/split.py` | Deduplicates recipes, creates the `rating >= 4` target, and creates seeded stratified train/validation/test splits. |
+| 4 | Versioning | `dvc.yaml` / `dvc.lock` | Tracks pipeline dependencies and generated data by hash for reproducibility. |
 
-1 Ingestion data/ingest.py Downloads the source recipe data.
-
-2 Validation data/validate.py Validates required schema, data types, null rules, and allowed ranges and writes validation reports.
-
-3 Split data/split.py Deduplicates recipes, creates the rating >= 4 target, and creates seeded stratified train/validation/test splits.
-
-4 Versioning dvc.yaml / Tracks pipeline dvc.lock dependencies and generated data by hash for reproducibility.
 To pull the exact versioned data:
 
+```bash
 dvc pull
+```
 
 To push a newly generated data version:
 
+```bash
 dvc push
+```
 
-Preprocessing, Features, Baseline & Evaluation
+## Preprocessing, Features, Baseline & Evaluation
+
 After the split data is available:
 
+```bash
 python preprocessing/preprocess.py
 python features/build_features.py
 python models/baseline.py --eval-split val
+```
 
-Step Stage Script What it does
+| Step | Stage | Script | What it does |
+|------|-------|--------|---------------|
+| 5 | Preprocessing | `preprocessing/preprocess.py` | Normalizes text, parses ingredients, converts cooking times, removes unusable rows, and performs residual deduplication. |
+| 6 | Feature Engineering | `features/build_features.py` | Creates ingredient, cooking-time, dietary, nutrition, and related engineered features. |
+| 7 | Baseline | `models/baseline.py` | Provides the required non-ML popularity baseline using train-set cuisine ratings. |
+| 8 | Evaluation | `evaluation/metrics.py` | Provides shared ROC-AUC, Precision@5, grouped Precision@5, and plotting utilities. |
 
-5 Preprocessing preprocessing/preprocess.py Normalizes text, parses ingredients, converts cooking times, removes unusable rows, and performs residual deduplication.
+## Model Training and Experimentation
 
-6 Feature features/build_features.py Creates Engineering ingredient, cooking-time, dietary, nutrition, and related engineered features.
+### Target and evaluation strategy
 
-7 Baseline models/baseline.py Provides the required non-ML popularity baseline using train-set cuisine ratings.
-
-8 Evaluation evaluation/metrics.py Provides shared ROC-AUC, Precision@5, grouped Precision@5, and plotting utilities.
-Model Training and Experimentation
-Target and evaluation strategy
 The primary target is:
 
-label = 1 when rating >= 4
-label = 0 otherwise
+- `label = 1` when `rating >= 4`
+- `label = 0` otherwise
 
-After deduplication, this target is highly imbalanced: roughly 94--95% of recipes are positive. For that reason, accuracy is not used as the primary model-selection metric. ROC-AUC is the primary discrimination metric, with Precision@5 and grouped Precision@5 retained as ranking-oriented secondary metrics.
+After deduplication, this target is highly imbalanced: roughly 94–95% of recipes are positive. For that reason, accuracy is **not** used as the primary model-selection metric. ROC-AUC is the primary discrimination metric, with Precision@5 and grouped Precision@5 retained as ranking-oriented secondary metrics.
 
 The project maintains three separate data roles:
 
-Training split: model fitting, hyperparameter search, and repeated cross-validation.
-Validation split: held-out comparison after training-side model selection.
-Test split: intentionally isolated from model selection and tuning for later production validation.
-The isolated test set was not used during the modeling experiments described below.
+- **Training split**: model fitting, hyperparameter search, and repeated cross-validation.
+- **Validation split**: held-out comparison after training-side model selection.
+- **Test split**: intentionally isolated from model selection and tuning for later production validation. The isolated test set was not used during the modeling experiments described below.
 
-Structured Logistic Regression
+### Structured Logistic Regression
+
 Run:
 
+```bash
 python -m models.train_logistic
+```
 
-models/train_logistic.py trains structured Logistic Regression candidates using engineered numeric and categorical features. It compares regularization strengths and class-weighting options, evaluates candidates consistently through evaluation.metrics, writes local artifacts, and logs training runs to MLflow.
+`models/train_logistic.py` trains structured Logistic Regression candidates using engineered numeric and categorical features. It compares regularization strengths and class-weighting options, evaluates candidates consistently through `evaluation.metrics`, writes local artifacts, and logs training runs to MLflow.
 
 This model provides a simple and interpretable ML benchmark above the non-ML popularity baseline.
 
-XGBoost
+### XGBoost
+
 Run:
 
+```bash
 python -m models.train_xgboost
+```
 
-models/train_xgboost.py trains and tunes an XGBoost classifier over the engineered structured features using stratified cross-validation. The search covers tree depth, number of estimators, learning rate, minimum child weight, row subsampling, and column subsampling.
+`models/train_xgboost.py` trains and tunes an XGBoost classifier over the engineered structured features using stratified cross-validation. The search covers tree depth, number of estimators, learning rate, minimum child weight, row subsampling, and column subsampling.
 
 In experimentation, structured XGBoost did not provide a meaningful improvement over chance-level ranking performance, which motivated testing whether the raw ingredient text contained stronger predictive signal than the manually engineered structured features.
 
-Text challengers
+### Text challengers
+
 Run:
 
+```bash
 python -m models.train_challengers
+```
 
-models/train_challengers.py evaluates serious text-based challengers using cleaned ingredients_parsed text. The implemented model families include:
+`models/train_challengers.py` evaluates serious text-based challengers using cleaned `ingredients_parsed` text. The implemented model families include:
 
-Character-level TF-IDF + Logistic Regression
-Word-level TF-IDF + Logistic Regression
-Character-level TF-IDF + Linear SVM
-Word-level TF-IDF + Linear SVM
-Blends/rank ensembles of complementary text models
+- Character-level TF-IDF + Logistic Regression
+- Word-level TF-IDF + Logistic Regression
+- Character-level TF-IDF + Linear SVM
+- Word-level TF-IDF + Linear SVM
+- Blends/rank ensembles of complementary text models
+
 Hyperparameters are tuned on training data, followed by repeated stratified cross-validation. The validation set is evaluated only after the training-side comparison.
 
 The experiments showed that ingredient text carries substantially more useful signal than the structured feature set.
 
-Ensemble stability
+### Ensemble stability
+
 Run:
 
+```bash
 python -m models.ensemble_stability
+```
 
-models/ensemble_stability.py evaluates the strongest individual text models and ensemble combinations on the exact same 10 × 5 RepeatedStratifiedKFold splits.
+`models/ensemble_stability.py` evaluates the strongest individual text models and ensemble combinations on the exact same 10 × 5 RepeatedStratifiedKFold splits.
 
 This is important because the dataset is small and contains very few negative examples. A single validation split can therefore produce a deceptively high or low ROC-AUC. Repeated CV gives a more credible estimate of whether an apparent improvement is persistent.
 
 The strongest repeated-CV candidate was a rank ensemble combining character TF-IDF Logistic Regression and word TF-IDF Linear SVM:
 
-Mean ROC-AUC:   0.6810
-Std ROC-AUC:    0.0897
-Median ROC-AUC: 0.6688
-Folds:          50
+- **Mean ROC-AUC:** 0.6810
+- **Std ROC-AUC:** 0.0897
+- **Median ROC-AUC:** 0.6688
+- **Folds:** 50
 
 This materially exceeds random ranking (ROC-AUC = 0.50), while the fold-to-fold variation also documents the uncertainty caused by the small and highly imbalanced dataset.
 
-Final candidates
+### Final candidates
+
 Run:
 
+```bash
 python -m models.train_final_candidates
+```
 
-models/train_final_candidates.py packages the final serious candidates into a reproducible comparison and logs them through MLflow.
+`models/train_final_candidates.py` packages the final serious candidates into a reproducible comparison and logs them through MLflow.
 
 The final comparison produced:
 
-Char Logistic | repeated-CV ROC-AUC ≈ 0.6277 | validation ROC-AUC ≈ 0.6976
-Word SVM      | repeated-CV ROC-AUC ≈ 0.6477 | validation ROC-AUC ≈ 0.6682
-Ensemble      | repeated-CV ROC-AUC ≈ 0.6810 | validation ROC-AUC ≈ 0.6903
+| Model | Repeated-CV ROC-AUC | Validation ROC-AUC |
+|-------|---------------------|---------------------|
+| Char Logistic | ≈ 0.6277 | ≈ 0.6976 |
+| Word SVM | ≈ 0.6477 | ≈ 0.6682 |
+| Ensemble | ≈ 0.6810 | ≈ 0.6903 |
 
 The ensemble is preferred because model selection is based primarily on the more robust repeated-CV evidence rather than choosing whichever candidate happened to score highest on one validation split.
 
-Additional Modeling Findings
+## Additional Modeling Findings
+
 Several additional experiments were performed during model development to understand the problem before settling on the reproducible final candidates.
 
 Key findings included:
 
-Structured-only Logistic Regression and XGBoost contained relatively weak predictive signal.
-TF-IDF representations of ingredient text improved discrimination substantially.
-Character n-grams were particularly effective for Logistic Regression.
-A dedicated experiment changing the positive target from rating >= 4 to rating >= 4.5 created a more balanced target but did not improve predictive performance enough to justify changing the agreed problem definition.
-Repeated CV was preferred over trusting a single small validation split.
-Ensembles were accepted only when they improved the training-side repeated-CV evidence rather than merely producing a lucky validation result.
-Exploratory scripts and intermediate experiment outputs may be kept outside the committed production path. The committed modeling scripts represent the reproducible path needed by the team.
+- Structured-only Logistic Regression and XGBoost contained relatively weak predictive signal.
+- TF-IDF representations of ingredient text improved discrimination substantially.
+- Character n-grams were particularly effective for Logistic Regression.
+- A dedicated experiment changing the positive target from `rating >= 4` to `rating >= 4.5` created a more balanced target but did not improve predictive performance enough to justify changing the agreed problem definition.
+- Repeated CV was preferred over trusting a single small validation split.
+- Ensembles were accepted only when they improved the training-side repeated-CV evidence rather than merely producing a lucky validation result.
+- Exploratory scripts and intermediate experiment outputs may be kept outside the committed production path. The committed modeling scripts represent the reproducible path needed by the team.
 
-MLflow Experiment Tracking
-MLflow is included in requirements.txt and is used to track model-training experiments.
+## MLflow Experiment Tracking
+
+MLflow is included in `requirements.txt` and is used to track model-training experiments.
 
 Start a local MLflow server from the repository environment:
 
+```bash
 mlflow server --host 127.0.0.1 --port 5000
+```
 
 Then, in a separate terminal with the same environment active, run the training scripts.
 
 The current training code uses:
 
-Tracking URI: http://127.0.0.1:5000
-Experiment:   recipe-recommender-training
+- **Tracking URI:** `http://127.0.0.1:5000`
+- **Experiment:** `recipe-recommender-training`
 
 MLflow records model configuration, metrics, and artifacts so the training process is auditable instead of relying on manually copied terminal output.
 
 Because this MLflow server is local, the MLflow database itself is not automatically shared by Git. What is shared through the repository is the code required to reproduce the experiment runs. A teammate can clone/pull the repository, install the dependencies, obtain the versioned data, start MLflow locally, and rerun the scripts to generate equivalent tracked experiments.
 
-Model Registry
+## Model Registry
+
 The selected model is registered in MLflow under:
 
+```
 recipe-recommender
+```
 
-The current selected version is assigned the:
-
-champion
-
-alias.
+The current selected version is assigned the **champion** alias.
 
 Run:
 
+```bash
 python -m models.register_best_model
+```
 
-models/register_best_model.py registers the finalized model in the MLflow Model Registry and assigns the champion alias. Downstream deployment code should load the model through the registry alias rather than hard-coding a local training-run path.
+`models/register_best_model.py` registers the finalized model in the MLflow Model Registry and assigns the champion alias. Downstream deployment code should load the model through the registry alias rather than hard-coding a local training-run path.
 
 This gives the project a clean handoff between experimentation and deployment:
 
+```
 training → MLflow experiment → final candidate → registered model → champion alias → deployment
+```
 
 When a genuinely better model is selected later, a new registered version can be created and the champion alias moved to that version without changing the deployment interface.
 
-Reproducing the Modeling Workflow
+## Reproducing the Modeling Workflow
+
 A teammate reproducing the current modeling work should:
 
-# 1. Install dependencies
-pip install -r requirements.txt -r requirements-dev.txt
+1. **Install dependencies**
 
-# 2. Obtain the versioned data
-dvc pull
+   ```bash
+   pip install -r requirements.txt -r requirements-dev.txt
+   ```
 
-# 3. Generate preprocessing/features if needed
-python preprocessing/preprocess.py
-python features/build_features.py
+2. **Obtain the versioned data**
 
-# 4. Start MLflow in a separate terminal
-mlflow server --host 127.0.0.1 --port 5000
+   ```bash
+   dvc pull
+   ```
 
-# 5. Train tracked structured benchmarks
-python -m models.train_logistic
-python -m models.train_xgboost
+3. **Generate preprocessing/features if needed**
 
-# 6. Run final text-model comparison/stability work
-python -m models.train_challengers
-python -m models.ensemble_stability
-python -m models.train_final_candidates
+   ```bash
+   python preprocessing/preprocess.py
+   python features/build_features.py
+   ```
 
-# 7. Register the selected model
-python -m models.register_best_model
+4. **Start MLflow in a separate terminal**
+
+   ```bash
+   mlflow server --host 127.0.0.1 --port 5000
+   ```
+
+5. **Train tracked structured benchmarks**
+
+   ```bash
+   python -m models.train_logistic
+   python -m models.train_xgboost
+   ```
+
+6. **Run final text-model comparison/stability work**
+
+   ```bash
+   python -m models.train_challengers
+   python -m models.ensemble_stability
+   python -m models.train_final_candidates
+   ```
+
+7. **Register the selected model**
+
+   ```bash
+   python -m models.register_best_model
+   ```
 
 The test split should remain untouched during these steps.
 
-⚠️ Run steps 6's train_final_candidates and step 7's register_best_model inside a Linux environment, not native Windows Python. MLflow bakes the operating system's path separator into the model's artifact manifest at logging time, so a Windows-native run permanently breaks model loading inside the Linux API container later (No such file or directory: ...\char_logistic.joblib). The earlier candidate-comparison scripts (train_logistic, train_xgboost, train_challengers, ensemble_stability) only log experiment-tracking metrics/artifacts that are never deployed, so those are safe to run on native Windows. On Windows, run the two deploy-affecting steps like this instead:
+> ⚠️ **Run step 6's `train_final_candidates` and step 7's `register_best_model` inside a Linux environment, not native Windows Python.** MLflow bakes the operating system's path separator into the model's artifact manifest at logging time, so a Windows-native run permanently breaks model loading inside the Linux API container later (`No such file or directory: ...\char_logistic.joblib`). The earlier candidate-comparison scripts (`train_logistic`, `train_xgboost`, `train_challengers`, `ensemble_stability`) only log experiment-tracking metrics/artifacts that are never deployed, so those are safe to run on native Windows.
+>
+> On Windows, run the two deploy-affecting steps like this instead:
+>
+> ```bash
+> docker compose build api
+>
+> docker compose run --rm \
+>   -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
+>   -v "$(pwd)/data:/app/data" \
+>   api python -m models.train_final_candidates
+>
+> docker compose run --rm \
+>   -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
+>   api python -m models.register_best_model
+> ```
+>
+> `scripts/run_full_pipeline.ps1` does this automatically — see [Running the Full Pipeline with One Script](#running-the-full-pipeline-with-one-script) below.
 
-docker compose build api
+## Champion Benchmark and Promotion
 
-docker compose run --rm \
-    -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
-    -v "$(pwd)/data:/app/data" \
-    api python -m models.train_final_candidates
-
-docker compose run --rm \
-    -e MLFLOW_TRACKING_URI=http://host.docker.internal:5000 \
-    api python -m models.register_best_model
-
-scripts/run_full_pipeline.ps1 does this automatically -- see "Running the Full Pipeline with One Script" below.
-
-Champion Benchmark and Promotion
 Because the project currently uses a local MLflow server, each developer's MLflow tracking database and Model Registry exist only on their own machine. The registered champion alias therefore is not automatically shared when another team member clones the GitHub repository.
 
 To make the selected champion reproducible across environments, the repository includes:
 
+```
 models/champion_config.json
+```
 
-This file is the Git-tracked source of truth for the currently approved model and its benchmark performance. The current champion is the character-TF-IDF Logistic Regression
+This file is the Git-tracked source of truth for the currently approved model and its benchmark performance. The current champion is the character-TF-IDF Logistic Regression + word-TF-IDF Linear SVM rank ensemble, selected using 5-fold cross-validation repeated 10 times (50 held-out folds).
 
-word-TF-IDF Linear SVM rank ensemble, selected using 5-fold cross-validation repeated 10 times (50 held-out folds).
 Current champion benchmark:
 
-Mean repeated-CV ROC-AUC: 0.6810
-Median repeated-CV ROC-AUC: 0.6688
-Validation ROC-AUC: approximately 0.690
-Test set used for model selection: No
+- **Mean repeated-CV ROC-AUC:** 0.6810
+- **Median repeated-CV ROC-AUC:** 0.6688
+- **Validation ROC-AUC:** approximately 0.690
+- **Test set used for model selection:** No
+
 The manifest also records the component model hyperparameters and ensemble configuration, allowing the champion to be reconstructed from the versioned training data.
 
-New training runs should be treated as challengers rather than automatically replacing the champion. A challenger should only be considered for promotion if it improves on the current champion under the same evaluation methodology and passes the project's validation checks. If promoted, the new model should be registered as a new MLflow model version, the champion alias should be moved to that version, and champion_config.json should be updated to record the new approved benchmark.
+New training runs should be treated as challengers rather than automatically replacing the champion. A challenger should only be considered for promotion if it improves on the current champion under the same evaluation methodology and passes the project's validation checks. If promoted, the new model should be registered as a new MLflow model version, the champion alias should be moved to that version, and `champion_config.json` should be updated to record the new approved benchmark.
 
-Exception -- bootstrap check for a fresh local registry: if your own local MLflow registry has no champion alias set yet (e.g. a brand new clone), the Airflow-triggered promote_model task promotes the very first candidate run automatically, regardless of the committed benchmark in champion_config.json. This avoids forcing a new contributor to beat the existing benchmark on their very first run just to get any champion registered locally. Once a local champion exists, the normal "must improve on the committed metric" gate applies as described above. This exception only affects the Airflow-automated promotion path -- the manual register_best_model.py path doesn't gate on anything and is unaffected either way.
+**Exception — bootstrap check for a fresh local registry:** if your own local MLflow registry has no champion alias set yet (e.g. a brand new clone), the Airflow-triggered `promote_model` task promotes the very first candidate run automatically, regardless of the committed benchmark in `champion_config.json`. This avoids forcing a new contributor to beat the existing benchmark on their very first run just to get any champion registered locally. Once a local champion exists, the normal "must improve on the committed metric" gate applies as described above. This exception only affects the Airflow-automated promotion path — the manual `register_best_model.py` path doesn't gate on anything and is unaffected either way.
 
 This design allows the team to use local MLflow instances during development while still maintaining a shared, version-controlled definition of the currently approved model.
 
-Airflow Orchestration
-How it was done
-Two Airflow DAGs were created in dags/ to orchestrate the full pipeline end-to-end. Each DAG calls the project's existing Python scripts through BashOperator tasks, so no existing code was modified. A PythonOperator handles the conditional model promotion gate, which is the only new logic.
+## Airflow Orchestration
+
+### How it was done
+
+Two Airflow DAGs were created in `dags/` to orchestrate the full pipeline end-to-end. Each DAG calls the project's existing Python scripts through `BashOperator` tasks, so no existing code was modified. A `PythonOperator` handles the conditional model promotion gate, which is the only new logic.
 
 Two separate DAGs were chosen so the data pipeline and ML pipeline can be triggered independently.
 
-DAG 1: recipe_data_pipeline
+### DAG 1: `recipe_data_pipeline`
+
 Handles data ingestion through splitting.
 
-#	Task	Operator	What it runs
-1	download_data	BashOperator	python data/ingest.py — downloads raw data from Kaggle
-2	validate_schema	BashOperator	python data/validate.py — validates schemas with Pandera
-3	version_files	BashOperator	dvc add data/raw && dvc push — versions raw files in DVC
-4	create_splits	BashOperator	python data/split.py — creates train/val/test splits
-download_data → validate_schema → version_files → create_splits
+| Task | Operator | What it runs |
+|------|----------|---------------|
+| 1. `download_data` | BashOperator | `python data/ingest.py` — downloads raw data from Kaggle |
+| 2. `validate_schema` | BashOperator | `python data/validate.py` — validates schemas with Pandera |
+| 3. `version_files` | BashOperator | `dvc add data/raw && dvc push` — versions raw files in DVC |
+| 4. `create_splits` | BashOperator | `python data/split.py` — creates train/val/test splits |
 
-DAG 2: recipe_ml_pipeline
+`download_data → validate_schema → version_files → create_splits`
+
+### DAG 2: `recipe_ml_pipeline`
+
 Handles preprocessing through model promotion.
 
-#	Task	Operator	What it runs
-1	preprocess	BashOperator	python preprocessing/preprocess.py — cleans and normalizes data
-2	feature_engineering	BashOperator	python features/build_features.py — builds model features
-3	train_candidates	BashOperator	python -m models.train_final_candidates — trains and evaluates candidates, logs to MLflow
-4	evaluate_and_log	BashOperator	python -m models.register_best_model — registers best model in MLflow
-5	promote_model	PythonOperator	Conditional promotion gate (see below)
-preprocess → feature_engineering → train_candidates → evaluate_and_log → promote_model
+| Task | Operator | What it runs |
+|------|----------|---------------|
+| 1. `preprocess` | BashOperator | `python preprocessing/preprocess.py` — cleans and normalizes data |
+| 2. `feature_engineering` | BashOperator | `python features/build_features.py` — builds model features |
+| 3. `train_candidates` | BashOperator | `python -m models.train_final_candidates` — trains and evaluates candidates, logs to MLflow |
+| 4. `evaluate_and_log` | BashOperator | `python -m models.register_best_model` — registers best model in MLflow |
+| 5. `promote_model` | PythonOperator | Conditional promotion gate (see below) |
 
-Because these BashOperator tasks run inside the airflow-scheduler container (Linux), triggering the pipeline through Airflow -- rather than running train_final_candidates/register_best_model by hand on Windows -- is also the safest way to avoid the Windows artifact-path issue described above.
+`preprocess → feature_engineering → train_candidates → evaluate_and_log → promote_model`
 
-Model promotion gate
-The promote_model task implements a conditional promotion check that prevents regressions from being deployed:
+Because these `BashOperator` tasks run inside the `airflow-scheduler` container (Linux), triggering the pipeline through Airflow — rather than running `train_final_candidates`/`register_best_model` by hand on Windows — is also the safest way to avoid the Windows artifact-path issue described above.
 
-Reads the current champion benchmark from models/champion_config.json.
-Finds the latest finished ensemble_text_champion run in MLflow.
-Compares the candidate's validation_roc_auc against the champion's selection_metric_value.
-Promotes only if the candidate improves the metric -- unless this is the first promotion attempt against an empty local registry, in which case it promotes unconditionally (see the bootstrap exception above).
-On promotion: registers a new MLflow model version, moves the champion alias, and updates champion_config.json.
-On skip: logs the decision and exits cleanly — no changes are made.
-Running the Airflow DAGs
-Prerequisites: Make sure MLflow is running before triggering the ML pipeline (mlflow server --host 127.0.0.1 --port 5000).
+### Model promotion gate
 
-Step 1 — Install Airflow:
+The `promote_model` task implements a conditional promotion check that prevents regressions from being deployed:
 
+1. Reads the current champion benchmark from `models/champion_config.json`.
+2. Finds the latest finished `ensemble_text_champion` run in MLflow.
+3. Compares the candidate's `validation_roc_auc` against the champion's `selection_metric_value`.
+4. Promotes only if the candidate improves the metric — unless this is the first promotion attempt against an empty local registry, in which case it promotes unconditionally (see the bootstrap exception above).
+5. On promotion: registers a new MLflow model version, moves the champion alias, and updates `champion_config.json`.
+6. On skip: logs the decision and exits cleanly — no changes are made.
+
+### Running the Airflow DAGs
+
+**Prerequisites:** Make sure MLflow is running before triggering the ML pipeline (`mlflow server --host 127.0.0.1 --port 5000`).
+
+**Step 1 — Install Airflow:**
+
+```bash
 pip install "apache-airflow>=2.9"
+```
 
-Step 2 — Set environment variables:
+**Step 2 — Set environment variables:**
 
+```bash
 # Tell Airflow where its home directory is
 export AIRFLOW_HOME=~/airflow
 
 # Tell the DAGs where the project repo lives
 # (defaults to the parent of dags/ if not set)
 export RECIPE_PROJECT_DIR=$(pwd)
+```
 
-Step 3 — Initialize the Airflow database:
+**Step 3 — Initialize the Airflow database:**
 
+```bash
 airflow db migrate
+```
 
-Step 4 — Make the DAGs visible to Airflow:
+**Step 4 — Make the DAGs visible to Airflow:**
 
-Symlink the dags/ directory into Airflow's expected location:
+Symlink the `dags/` directory into Airflow's expected location:
 
+```bash
 ln -s "$RECIPE_PROJECT_DIR/dags" "$AIRFLOW_HOME/dags"
+```
 
-Alternatively, edit $AIRFLOW_HOME/airflow.cfg and set dags_folder to point directly to the repository's dags/ directory.
+Alternatively, edit `$AIRFLOW_HOME/airflow.cfg` and set `dags_folder` to point directly to the repository's `dags/` directory.
 
-Step 5 — Verify both DAGs are discovered:
+**Step 5 — Verify both DAGs are discovered:**
 
+```bash
 airflow dags list
+```
 
-You should see recipe_data_pipeline and recipe_ml_pipeline.
+You should see `recipe_data_pipeline` and `recipe_ml_pipeline`.
 
-Step 6 — Start the Airflow scheduler and webserver:
+**Step 6 — Start the Airflow scheduler and webserver:**
 
+```bash
 airflow scheduler &
 airflow webserver --port 8080 &
+```
 
 Open http://localhost:8080 to access the Airflow web UI.
 
-Step 7 — Trigger the pipelines:
+**Step 7 — Trigger the pipelines:**
 
+```bash
 # Run the data pipeline first
 airflow dags trigger recipe_data_pipeline
 
 # After data is ready, run the ML pipeline
 airflow dags trigger recipe_ml_pipeline
+```
 
 You can also trigger DAGs from the web UI by clicking the play button on each DAG's page.
 
-Monitoring, Drift Simulation, and Production Validation
-The repository implements the full monitoring stack described in the project guidelines, using a lightweight, custom-built layer in place of a full Prometheus/Grafana deployment. All scripts below are reproducible and were verified against the actual isolated test split (data/processed/clean/test.csv) before being committed.
+## Monitoring, Drift Simulation, and Production Validation
 
-Layer 1: Data quality and system metrics (row 22)
-api/metrics_middleware.py records every request's latency, path, and status code in-process. GET /metrics on the running API returns the same signals a Prometheus + Grafana dashboard would surface (request volume, error rate, p50/p95 latency), without the operational overhead of standing up a separate metrics stack for a class project timeline.
+The repository implements the full monitoring stack described in the project guidelines, using a lightweight, custom-built layer in place of a full Prometheus/Grafana deployment. All scripts below are reproducible and were verified against the actual isolated test split (`data/processed/clean/test.csv`) before being committed.
 
+### Layer 1: Data quality and system metrics
+
+`api/metrics_middleware.py` records every request's latency, path, and status code in-process. `GET /metrics` on the running API returns the same signals a Prometheus + Grafana dashboard would surface (request volume, error rate, p50/p95 latency), without the operational overhead of standing up a separate metrics stack for a class project timeline.
+
+```bash
 curl http://localhost:8000/metrics
+```
 
-Layer 2: Drift simulation (row 23)
-monitoring/drift_simulation.py builds a clean, API-request-shaped batch from the isolated test split, plus four corrupted variants simulating distinct real-world failure modes:
+### Layer 2: Drift simulation
 
-Variant	What's corrupted
-drift_missing_values.csv	cook_time_minutes / calories nulled out for a subset of rows
-drift_out_of_range.csv	Negative cook times; calorie values in the tens of thousands
-drift_schema_swap.csv	cook_time_minutes and calories column values swapped
-drift_schema_change.csv	A column renamed, another dropped entirely
+`monitoring/drift_simulation.py` builds a clean, API-request-shaped batch from the isolated test split, plus four corrupted variants simulating distinct real-world failure modes:
+
+| Variant | What's corrupted |
+|---------|-------------------|
+| `drift_missing_values.csv` | `cook_time_minutes` / `calories` nulled out for a subset of rows |
+| `drift_out_of_range.csv` | Negative cook times; calorie values in the tens of thousands |
+| `drift_schema_swap.csv` | `cook_time_minutes` and `calories` column values swapped |
+| `drift_schema_change.csv` | A column renamed, another dropped entirely |
+
+```bash
 python -m monitoring.drift_simulation
+```
 
-Outputs land in monitoring/drift_data/, along with a drift_manifest.json recording exactly which rows/columns were touched by each corruption -- the ground truth used to check whether monitoring actually caught each one.
+Outputs land in `monitoring/drift_data/`, along with a `drift_manifest.json` recording exactly which rows/columns were touched by each corruption — the ground truth used to check whether monitoring actually caught each one.
 
-Layer 3: Evidently statistical drift + rule-based quality checks (row 21)
+### Layer 3: Evidently statistical drift + rule-based quality checks
+
 Two complementary checks run against every batch:
 
-monitoring/evidently_report.py -- an Evidently DataDriftPreset report comparing the current batch's distribution against the reference (clean) batch. Good at catching gradual, distribution-level shift (e.g. the column-swap scenario).
-monitoring/data_quality_checks.py -- rule-based schema-contract, physically-plausible-range, and null-rate-spike checks. Good at catching row-level anomalies and structural breaks that a pure distribution test can miss (missing values, out-of-range values, renamed/dropped columns).
+- `monitoring/evidently_report.py` — an Evidently `DataDriftPreset` report comparing the current batch's distribution against the reference (clean) batch. Good at catching gradual, distribution-level shift (e.g. the column-swap scenario).
+- `monitoring/data_quality_checks.py` — rule-based schema-contract, physically-plausible-range, and null-rate-spike checks. Good at catching row-level anomalies and structural breaks that a pure distribution test can miss (missing values, out-of-range values, renamed/dropped columns).
+
+```bash
 python -m monitoring.evidently_report \
-    --reference monitoring/drift_data/clean_candidates.csv \
-    --current monitoring/drift_data/drift_out_of_range.csv \
-    --name out_of_range
+  --reference monitoring/drift_data/clean_candidates.csv \
+  --current monitoring/drift_data/drift_out_of_range.csv \
+  --name out_of_range
 
 python -m monitoring.data_quality_checks \
-    --current monitoring/drift_data/drift_out_of_range.csv \
-    --name out_of_range
+  --current monitoring/drift_data/drift_out_of_range.csv \
+  --name out_of_range
+```
 
-Layer 4: Anomaly verification (row 24)
-monitoring/verify_alerts.py runs both layers across the clean baseline and all four corrupted variants in one pass and writes a consolidated pass/fail evidence report to monitoring/reports/verify_alerts_summary.json, plus HTML drift reports per scenario for the presentation demo.
+### Layer 4: Anomaly verification
 
+`monitoring/verify_alerts.py` runs both layers across the clean baseline and all four corrupted variants in one pass and writes a consolidated pass/fail evidence report to `monitoring/reports/verify_alerts_summary.json`, plus HTML drift reports per scenario for the presentation demo.
+
+```bash
 python -m monitoring.verify_alerts
+```
 
-Verified result: 5/5 scenarios correctly classified (the clean baseline correctly shows no anomaly; all four corrupted variants are correctly flagged), with zero false positives.
+**Verified result:** 5/5 scenarios correctly classified (the clean baseline correctly shows no anomaly; all four corrupted variants are correctly flagged), with zero false positives.
 
-Production baseline validation (row 20)
-monitoring/production_validation.py sends the clean candidate batch through the deployed /predict endpoint (not just the model object in isolation) and compares the live API's ROC-AUC against the offline validation ROC-AUC recorded in models/champion_config.json. Results are written to monitoring/reports/production_validation_report.json.
+### Production baseline validation
 
+`monitoring/production_validation.py` sends the clean candidate batch through the deployed `/predict` endpoint (not just the model object in isolation) and compares the live API's ROC-AUC against the offline validation ROC-AUC recorded in `models/champion_config.json`. Results are written to `monitoring/reports/production_validation_report.json`.
+
+```bash
 # 1. Start MLflow on the host, then the rest of the stack
 #    (see "Quick Start with Docker Compose" below)
 mlflow server --host 0.0.0.0 --port 5000 \
-    --backend-store-uri sqlite:///mlflow.db \
-    --default-artifact-root ./mlartifacts \
-    --allowed-hosts '*' --cors-allowed-origins '*'   # separate terminal, leave running
+  --backend-store-uri sqlite:///mlflow.db \
+  --default-artifact-root ./mlartifacts \
+  --allowed-hosts '' --cors-allowed-origins ''   # separate terminal, leave running
+
 docker compose up -d --build
 curl http://localhost:8000/health   # confirm model_loaded: true
 
@@ -498,103 +609,132 @@ python -m monitoring.drift_simulation
 
 # 3. Run production validation against the live API
 python -m monitoring.production_validation --api-url http://localhost:8000
+```
 
-Monitoring Dashboard (Streamlit)
-monitoring/dashboard.py is a live, single-page monitoring dashboard combining everything above into one view: current API health and /metrics, offline champion benchmark vs. live production validation, and the drift/data-quality verify_alerts results (including inline Evidently HTML reports per scenario). It runs as the dashboard service in Docker Compose (see Container Architecture below) or standalone:
+## Monitoring Dashboard (Streamlit)
 
+`monitoring/dashboard.py` is a live, single-page monitoring dashboard combining everything above into one view: current API health and `/metrics`, offline champion benchmark vs. live production validation, and the drift/data-quality `verify_alerts` results (including inline Evidently HTML reports per scenario). It runs as the `dashboard` service in Docker Compose (see [Container Architecture](#container-architecture) below) or standalone:
+
+```bash
 pip install -r requirements-dev.txt   # streamlit, requests, pandas
 streamlit run monitoring/dashboard.py
+```
 
-Sidebar buttons re-run drift_simulation, verify_alerts, and production_validation on demand without leaving the browser. When run via Docker Compose, it's reachable at:
+Sidebar buttons re-run `drift_simulation`, `verify_alerts`, and `production_validation` on demand without leaving the browser. When run via Docker Compose, it's reachable at:
 
+```
 http://localhost:8501
+```
 
-Consumer Webapp (SavorAI Culinary Studio)
-webapp/ is a separate, consumer-facing Streamlit app -- distinct from the team-facing monitoring dashboard above. Where the dashboard answers "is the system healthy," the webapp answers "what does the model actually do," framed as a recipe quality evaluator and menu ranker a home cook could use directly.
+## Consumer Webapp (SavorAI Culinary Studio)
 
+`webapp/` is a separate, consumer-facing Streamlit app — distinct from the team-facing monitoring dashboard above. Where the dashboard answers "is the system healthy," the webapp answers "what does the model actually do," framed as a recipe quality evaluator and menu ranker a home cook could use directly.
+
+```bash
 pip install -r requirements-dev.txt   # streamlit, pandas, requests
 streamlit run webapp/app.py
+```
 
 It's built around two tabs:
 
-Recipe Evaluator (webapp/components/single_recipe_view.py) -- enter or pick a preset recipe and get an instant quality score, star rating, and dietary badges.
-Menu & Collection Ranker (webapp/components/batch_upload_view.py) -- build a menu in an editable in-app table or upload a CSV/JSON file, then rank the whole set by predicted quality, with a CSV export of the results.
-webapp/pipeline_adapter.py is the glue layer between the UI and the rest of the repo. It's not just an HTTP client: it imports preprocessing/preprocess.py and features/build_features.py directly to validate, clean, and derive dietary tags locally, then calls the live API's POST /predict for the actual model score. If the API is unreachable, it falls back to a local heuristic scorer (keyword-based, clearly not the champion model) so the demo still runs standalone -- useful for showing the UI without the full stack up, but worth knowing about so a fallback score is never mistaken for a real model prediction.
+- **Recipe Evaluator** (`webapp/components/single_recipe_view.py`) — enter or pick a preset recipe and get an instant quality score, star rating, and dietary badges.
+- **Menu & Collection Ranker** (`webapp/components/batch_upload_view.py`) — build a menu in an editable in-app table or upload a CSV/JSON file, then rank the whole set by predicted quality, with a CSV export of the results.
+
+`webapp/pipeline_adapter.py` is the glue layer between the UI and the rest of the repo. It's not just an HTTP client: it imports `preprocessing/preprocess.py` and `features/build_features.py` directly to validate, clean, and derive dietary tags locally, then calls the live API's `POST /predict` for the actual model score. If the API is unreachable, it falls back to a local heuristic scorer (keyword-based, clearly not the champion model) so the demo still runs standalone — useful for showing the UI without the full stack up, but worth knowing about so a fallback score is never mistaken for a real model prediction.
 
 When run via Docker Compose, it's reachable at:
 
+```
 http://localhost:8502
+```
 
-Note: webapp/components/ also includes pipeline_inspector_view.py (a visual walkthrough of the 8-stage pipeline architecture) and service_status_view.py (live API health/telemetry with a hot-reload button). Neither is currently wired into webapp/app.py's tabs -- only the two consumer-facing views above are. Worth a team decision on whether those two are meant to ship as an admin/debug view (e.g. a third tab) or were intentionally left out of the consumer-facing app.
+**Note:** `webapp/components/` also includes `pipeline_inspector_view.py` (a visual walkthrough of the 8-stage pipeline architecture) and `service_status_view.py` (live API health/telemetry with a hot-reload button). Neither is currently wired into `webapp/app.py`'s tabs — only the two consumer-facing views above are. Worth a team decision on whether those two are meant to ship as an admin/debug view (e.g. a third tab) or were intentionally left out of the consumer-facing app.
 
-.streamlit/config.toml (repo root) holds Streamlit theme/server settings and applies to both Streamlit services -- dashboard and webapp both pick it up automatically, since Streamlit reads config relative to the working directory at launch (/app in both containers, matching where .streamlit/ lands via each Dockerfile's COPY . .).
+`.streamlit/config.toml` (repo root) holds Streamlit theme/server settings and applies to both Streamlit services — dashboard and webapp both pick it up automatically, since Streamlit reads config relative to the working directory at launch (`/app` in both containers, matching where `.streamlit/` lands via each Dockerfile's `COPY . .`).
 
-recipe_menu_template.csv (repo root) is not yet referenced by any code path -- likely intended as a downloadable starting template for the Menu & Collection Ranker's file-upload mode, but not wired in yet. Worth a team decision on whether to add a "Download Template" button in batch_upload_view.py or remove the file if it's no longer needed. Either way, .dockerignore no longer excludes root-level CSVs (see Troubleshooting), so it won't be silently dropped from container builds once it is wired in.
+`recipe_menu_template.csv` (repo root) is not yet referenced by any code path — likely intended as a downloadable starting template for the Menu & Collection Ranker's file-upload mode, but not wired in yet. Worth a team decision on whether to add a "Download Template" button in `batch_upload_view.py` or remove the file if it's no longer needed. Either way, `.dockerignore` no longer excludes root-level CSVs (see [Troubleshooting](#troubleshooting)), so it won't be silently dropped from container builds once it is wired in.
 
-Testing
+## Testing
+
 Run the full test suite:
 
+```bash
 pip install -r requirements-dev.txt
 python -m pytest tests/ -v
+```
 
-tests/test_preprocessing.py, tests/test_build_features.py, tests/test_metrics.py, tests/test_validate.py -- unit tests for the core data pipeline functions and the Pandera validation schema.
-tests/test_filters.py, tests/test_schemas.py, tests/test_api_docker.py -- unit tests for the API's filtering logic and Pydantic request/response contracts.
-tests/test_api_integration.py -- integration tests exercising the full request -> filter -> score -> rank -> response path against a fake model, so CI doesn't need a live MLflow server.
-tests/test_metrics_endpoint.py -- verifies the /metrics monitoring endpoint records and summarizes real request traffic.
-All 108 tests pass in ~10 seconds on a clean install of requirements-ci.txt.
+- `tests/test_preprocessing.py`, `tests/test_build_features.py`, `tests/test_metrics.py`, `tests/test_validate.py` — unit tests for the core data pipeline functions and the Pandera validation schema.
+- `tests/test_filters.py`, `tests/test_schemas.py`, `tests/test_api_docker.py` — unit tests for the API's filtering logic and Pydantic request/response contracts.
+- `tests/test_api_integration.py` — integration tests exercising the full request → filter → score → rank → response path against a fake model, so CI doesn't need a live MLflow server.
+- `tests/test_metrics_endpoint.py` — verifies the `/metrics` monitoring endpoint records and summarizes real request traffic.
 
-Continuous Integration
-.github/workflows/ci.yml runs on every push/PR to main:
+All 108 tests pass in ~10 seconds on a clean install of `requirements-ci.txt`.
 
-test -- installs requirements-ci.txt and runs the full pytest suite.
-lint -- runs ruff (currently non-blocking; a baseline config still needs to be agreed on).
-docker-build -- confirms both Dockerfile.api and Dockerfile.airflow build successfully.
-FastAPI Inference Service & Nutritional Filtering Layer
-The repository provides a production-grade inference service in api/:
+## Continuous Integration
 
-api/main.py: FastAPI application loading the champion model from MLflow (models:/recipe-recommender@champion).
-api/schemas.py: Pydantic request/response contracts for recipe candidates, dietary tags, filter constraints, and predictions.
-api/filters.py: Deterministic pre-inference filter layer processing calorie limits, cooking times, required dietary tags, and excluded ingredients before candidate recipes are sent to the model.
-API Endpoints
-Endpoint	Method	Description
-/health	GET	Service status, model loaded flag, model name, and alias
-/predict	POST	Scores and ranks recipe candidates after applying constraint filters
-/reload-model	POST	Hot-reloads the champion model from the MLflow registry
-Containerization and Docker Compose Deployment
-The Inference API, Streamlit Dashboard, Streamlit Webapp, Airflow Webserver/Scheduler, and PostgreSQL are containerized and orchestrated via Docker Compose. MLflow currently runs directly on the host machine, not in a container -- see the note below.
+`.github/workflows/ci.yml` runs on every push/PR to `main`:
 
-⚠️ MLflow: run on the host, not in Docker
-The mlflow service in docker-compose.yml is present but disabled by default (profiles: ["disabled"]). On the machine this was last verified on, that exact container/version combo (MLflow 3.15.1) bound only to 127.0.0.1 inside the container despite --host 0.0.0.0 being set -- confirmed at the kernel socket level, not just from log messages. Root cause wasn't identified; the same command run directly (outside Docker) works correctly. See the comment block above the mlflow: service in docker-compose.yml for full details.
+- **test** — installs `requirements-ci.txt` and runs the full pytest suite.
+- **lint** — runs `ruff` (currently non-blocking; a baseline config still needs to be agreed on).
+- **docker-build** — confirms both `Dockerfile.api` and `Dockerfile.airflow` build successfully.
 
-Workaround (what to actually run): start MLflow directly on your host, pointing at your existing local mlflow.db / mlartifacts/:
+## FastAPI Inference Service & Nutritional Filtering Layer
 
-mlflow server --host 0.0.0.0 --port 5000 \
-    --backend-store-uri sqlite:///mlflow.db \
-    --default-artifact-root ./mlartifacts \
-    --allowed-hosts '*' --cors-allowed-origins '*'
+The repository provides a production-grade inference service in `api/`:
 
-Leave that running in its own terminal. The api, dashboard, airflow-webserver, and airflow-scheduler services are all configured to reach it via http://host.docker.internal:5000, Docker's built-in hostname for "the machine Docker is running on" -- no other setup needed on their end.
+- `api/main.py` — FastAPI application loading the champion model from MLflow (`models:/recipe-recommender@champion`).
+- `api/schemas.py` — Pydantic request/response contracts for recipe candidates, dietary tags, filter constraints, and predictions.
+- `api/filters.py` — Deterministic pre-inference filter layer processing calorie limits, cooking times, required dietary tags, and excluded ingredients before candidate recipes are sent to the model.
 
-Note: webapp is the one containerized service that does not talk to MLflow at all -- it reaches the champion model only indirectly, through the api service's /predict endpoint, so it depends on api being healthy rather than on MLflow directly.
+### API Endpoints
 
-If/when the containerized MLflow bind issue gets root-caused, remove the profiles line from the mlflow service and switch the other services' MLFLOW_TRACKING_URI back to http://mlflow:5000.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Service status, model loaded flag, model name, and alias |
+| `/predict` | POST | Scores and ranks recipe candidates after applying constraint filters |
+| `/reload-model` | POST | Hot-reloads the champion model from the MLflow registry |
 
-Container Architecture
-Service	Container Name	Port	Description
-FastAPI Service	recipe-api	8000	Inference API built from Dockerfile.api. Requires the Python 3.12-based image (see note below) and a running host MLflow.
-Streamlit Dashboard	recipe-dashboard	8501	Live monitoring dashboard built from Dockerfile.dashboard. Reaches the API over the Docker network at http://api:8000.
-Streamlit Webapp	recipe-webapp	8502	Consumer-facing recipe evaluator/menu ranker built from Dockerfile.webapp. Reaches the API over the Docker network at http://api:8000; falls back to local heuristic scoring if the API is unreachable.
-MLflow Server	(runs on host, not containerized)	5000	Tracking server & model registry. See "MLflow: run on the host" above.
-Airflow Webserver	recipe-airflow-webserver	8080	Airflow Web UI built from Dockerfile.airflow
-Airflow Scheduler	recipe-airflow-scheduler	—	Background task scheduler running DAGs
-Airflow Init	recipe-airflow-init	—	Migration task creating Airflow DB schema & admin user
-PostgreSQL	recipe-postgres	5432	Backing database for Airflow metadata
-⚠️ Python version must match the training environment
-Dockerfile.api builds on python:3.12-slim to match the Python version models are actually trained/pickled under (check with python --version in your training environment). If your champion model was trained under a different Python minor version, update the FROM line in Dockerfile.api to match -- a mismatch here fails at model-load time with an error like code expected at most N arguments, got M, which is a Python bytecode/pickle incompatibility across minor versions, not an MLflow or app bug.
+## Containerization and Docker Compose Deployment
 
-Running the Full Pipeline with One Script
-On Windows, scripts/run_full_pipeline.ps1 runs the entire flow above start to finish in one command: checks prerequisites (Docker, Python, MLflow, port availability), starts or reuses MLflow on the host, trains and registers the champion model inside the api container (so the Windows artifact-path issue described earlier in this README can't recur), builds and starts the Docker Compose stack, verifies /health reports model_loaded: true, runs the monitoring pipeline (drift simulation, alert verification, production validation), and runs the test suite.
+The Inference API, Streamlit Dashboard, Streamlit Webapp, Airflow Webserver/Scheduler, and PostgreSQL are containerized and orchestrated via Docker Compose. MLflow currently runs directly on the host machine, not in a container — see the note below.
 
+> ⚠️ **MLflow: run on the host, not in Docker.** The `mlflow` service in `docker-compose.yml` is present but disabled by default (`profiles: ["disabled"]`). On the machine this was last verified on, that exact container/version combo (MLflow 3.15.1) bound only to `127.0.0.1` inside the container despite `--host 0.0.0.0` being set — confirmed at the kernel socket level, not just from log messages. Root cause wasn't identified; the same command run directly (outside Docker) works correctly. See the comment block above the `mlflow:` service in `docker-compose.yml` for full details.
+>
+> **Workaround (what to actually run):** start MLflow directly on your host, pointing at your existing local `mlflow.db` / `mlartifacts/`:
+>
+> ```bash
+> mlflow server --host 0.0.0.0 --port 5000 \
+>   --backend-store-uri sqlite:///mlflow.db \
+>   --default-artifact-root ./mlartifacts \
+>   --allowed-hosts '' --cors-allowed-origins ''
+> ```
+>
+> Leave that running in its own terminal. The `api`, `dashboard`, `airflow-webserver`, and `airflow-scheduler` services are all configured to reach it via `http://host.docker.internal:5000`, Docker's built-in hostname for "the machine Docker is running on" — no other setup needed on their end.
+>
+> If/when the containerized MLflow bind issue gets root-caused, remove the `profiles` line from the `mlflow` service and switch the other services' `MLFLOW_TRACKING_URI` back to `http://mlflow:5000`.
+
+### Container Architecture
+
+| Service | Container Name | Port | Description |
+|---------|-----------------|------|-------------|
+| FastAPI Service | `recipe-api` | 8000 | Inference API built from `Dockerfile.api`. Requires the Python 3.12-based image (see note below) and a running host MLflow. |
+| Streamlit Dashboard | `recipe-dashboard` | 8501 | Live monitoring dashboard built from `Dockerfile.dashboard`. Reaches the API over the Docker network at `http://api:8000`. |
+| Streamlit Webapp | `recipe-webapp` | 8502 | Consumer-facing recipe evaluator/menu ranker built from `Dockerfile.webapp`. Reaches the API over the Docker network at `http://api:8000`; falls back to local heuristic scoring if the API is unreachable. |
+| MLflow Server | *(runs on host, not containerized)* | 5000 | Tracking server & model registry. See "MLflow: run on the host" above. |
+| Airflow Webserver | `recipe-airflow-webserver` | 8080 | Airflow Web UI built from `Dockerfile.airflow` |
+| Airflow Scheduler | `recipe-airflow-scheduler` | — | Background task scheduler running DAGs |
+| Airflow Init | `recipe-airflow-init` | — | Migration task creating Airflow DB schema & admin user |
+| PostgreSQL | `recipe-postgres` | 5432 | Backing database for Airflow metadata |
+
+Note: `webapp` is the one containerized service that does not talk to MLflow at all — it reaches the champion model only indirectly, through the `api` service's `/predict` endpoint, so it depends on `api` being healthy rather than on MLflow directly.
+
+> ⚠️ **Python version must match the training environment.** `Dockerfile.api` builds on `python:3.12-slim` to match the Python version models are actually trained/pickled under (check with `python --version` in your training environment). If your champion model was trained under a different Python minor version, update the `FROM` line in `Dockerfile.api` to match — a mismatch here fails at model-load time with an error like `code expected at most N arguments, got M`, which is a Python bytecode/pickle incompatibility across minor versions, not an MLflow or app bug.
+
+## Running the Full Pipeline with One Script
+
+On Windows, `scripts/run_full_pipeline.ps1` runs the entire flow above start to finish in one command: checks prerequisites (Docker, Python, MLflow, port availability), starts or reuses MLflow on the host, trains and registers the champion model inside the `api` container (so the Windows artifact-path issue described earlier in this README can't recur), builds and starts the Docker Compose stack, verifies `/health` reports `model_loaded: true`, runs the monitoring pipeline (drift simulation, alert verification, production validation), and runs the test suite.
+
+```powershell
 .\scripts\run_full_pipeline.ps1
 
 # Reuse an already-registered champion instead of retraining:
@@ -602,145 +742,171 @@ On Windows, scripts/run_full_pipeline.ps1 runs the entire flow above start to fi
 
 # Skip the pytest run at the end:
 .\scripts\run_full_pipeline.ps1 -SkipTests
+```
 
-Note: the script does not trigger the Airflow DAGs for you -- after it finishes, trigger recipe_data_pipeline and then recipe_ml_pipeline manually from the Airflow UI (http://localhost:8080, admin/admin) or via airflow dags trigger, as described above.
+**Note:** the script does not trigger the Airflow DAGs for you — after it finishes, trigger `recipe_data_pipeline` and then `recipe_ml_pipeline` manually from the Airflow UI (http://localhost:8080, admin/admin) or via `airflow dags trigger`, as described above.
 
 On completion, the script prints direct links to every running service, including the dashboard:
 
-  MLflow:     http://localhost:5000
-  API:        http://localhost:8000/docs
-  Airflow:    http://localhost:8080  (admin / admin)
-  Dashboard:  http://localhost:8501
-  Webapp:     http://localhost:8502
+- MLflow: http://localhost:5000
+- API: http://localhost:8000/docs
+- Airflow: http://localhost:8080 (admin / admin)
+- Dashboard: http://localhost:8501
+- Webapp: http://localhost:8502
 
-Quick Start with Docker Compose
+## Quick Start with Docker Compose
+
 Start MLflow on your host first (see "MLflow: run on the host" above) and leave it running in its own terminal.
 
-Build and start the rest of the stack in detached mode (the disabled mlflow service is skipped automatically):
+Build and start the rest of the stack in detached mode (the disabled `mlflow` service is skipped automatically):
 
+```bash
 docker compose up -d --build
+```
 
 Verify container health:
+
+```bash
 docker compose ps
+```
 
-Access Service Interfaces:
+**Access Service Interfaces:**
 
-FastAPI Documentation & Swagger UI: http://localhost:8000/docs
-Monitoring Dashboard: http://localhost:8501
-Consumer Webapp (SavorAI Culinary Studio): http://localhost:8502
-MLflow Tracking & Model Registry (on host): http://localhost:5000
-Airflow Web UI: http://localhost:8080 (Credentials: admin / admin)
-Verify FastAPI Endpoint Health:
+- FastAPI Documentation & Swagger UI: http://localhost:8000/docs
+- Monitoring Dashboard: http://localhost:8501
+- Consumer Webapp (SavorAI Culinary Studio): http://localhost:8502
+- MLflow Tracking & Model Registry (on host): http://localhost:5000
+- Airflow Web UI: http://localhost:8080 (Credentials: admin / admin)
 
+**Verify FastAPI Endpoint Health:**
+
+```bash
 curl http://localhost:8000/health
+```
 
-Expect "model_loaded": true. If false, check docker compose logs api -- the most common causes are the host MLflow not running/reachable, the champion model having been trained natively on Windows (see the Windows path-separator warning earlier in this README), or the Python-version mismatch described above.
+Expect `"model_loaded": true`. If false, check `docker compose logs api` — the most common causes are the host MLflow not running/reachable, the champion model having been trained natively on Windows (see the Windows path-separator warning earlier in this README), or the Python-version mismatch described above.
 
-Send a Test Prediction Request:
+**Send a Test Prediction Request:**
+
+```bash
 curl -X POST "http://localhost:8000/predict" \
-     -H "Content-Type: application/json" \
-     -d '{
-       "candidates": [
-         {
-           "recipe_id": "r101",
-           "title": "Healthy Summer Salad",
-           "ingredients_parsed": "fresh spinach, cherry tomatoes, olive oil, lemon juice",
-           "calories": 220,
-           "cook_time_minutes": 10,
-           "dietary_tags": ["vegetarian", "vegan", "gluten_free"]
-         },
-         {
-           "recipe_id": "r102",
-           "title": "High Calorie Bacon Burger",
-           "ingredients_parsed": "beef patty, bacon, cheddar cheese, bun",
-           "calories": 950,
-           "cook_time_minutes": 25
-         }
-       ],
-       "constraints": {
-         "max_calories": 500,
-         "required_dietary_tags": ["vegetarian"]
-       },
-       "top_k": 5
-     }'
+  -H "Content-Type: application/json" \
+  -d '{
+    "candidates": [
+      {
+        "recipe_id": "r101",
+        "title": "Healthy Summer Salad",
+        "ingredients_parsed": "fresh spinach, cherry tomatoes, olive oil, lemon juice",
+        "calories": 220,
+        "cook_time_minutes": 10,
+        "dietary_tags": ["vegetarian", "vegan", "gluten_free"]
+      },
+      {
+        "recipe_id": "r102",
+        "title": "High Calorie Bacon Burger",
+        "ingredients_parsed": "beef patty, bacon, cheddar cheese, bun",
+        "calories": 950,
+        "cook_time_minutes": 25
+      }
+    ],
+    "constraints": {
+      "max_calories": 500,
+      "required_dietary_tags": ["vegetarian"]
+    },
+    "top_k": 5
+  }'
+```
 
-Tear down the stack:
+**Tear down the stack:**
+
+```bash
 # Stop containers keeping volumes intact
 docker compose down
 
 # Stop containers and wipe persistent data volumes
 docker compose down -v
+```
 
-Running Automated API Integration Tests
+## Running Automated API Integration Tests
+
 To run the Pytest integration suite for the API logic:
 
+```bash
 python -m pytest tests/test_api_docker.py -v
+```
 
-Troubleshooting
+## Troubleshooting
+
 A few issues came up during local verification on Windows that are worth knowing about if you hit them:
 
-Dashboard image takes 10+ minutes to build / Docker daemon drops the connection (EOF): caused by Dockerfile.dashboard's build context not being scoped, so Docker was packaging up .venv/, .git/, data/, and mlartifacts/ (hundreds of MB) on every build. Fixed by adding a root-level .dockerignore (already committed) excluding those paths. If you recreate the repo from scratch and hit this again, confirm .dockerignore exists at the same level as docker-compose.yml and excludes .venv/, .git/, data/, mlartifacts/, mlflow.db, and monitoring/drift_data/ | monitoring/reports/.
-ImportError: cannot import name 'Dataset' from 'evidently' (unknown location): means evidently isn't actually installed in the active venv (pip show evidently returns nothing), not a version mismatch. Run pip install -r requirements.txt -r requirements-dev.txt in the active venv and confirm with python -c "import evidently; print(evidently.__file__)" -- you want a real file path back, not None.
-No module named pytest when running the pipeline script: requirements-dev.txt wasn't installed in the active venv. Run pip install -r requirements-dev.txt.
-run_full_pipeline.ps1 intermittently fails at "Could not retrieve API health response" right after Stage 3 even though the API is actually healthy: this was a race condition in the script itself -- the initial health check has retry logic, but the follow-up call that reads the response body did not, so a single transient connection blip right after docker compose up could kill the run. Fixed in the script (the health check now reuses the retried response instead of making an unprotected second call).
-A CSV placed at the repo root (e.g. recipe_menu_template.csv) doesn't show up inside a container even though docker compose build succeeds: earlier .dockerignore had a blanket *.csv rule intended to keep data/'s many recipe CSVs out of the build context, but it also silently excluded any CSV anywhere in the repo, root-level ones included. data/ is already excluded as its own directory, so the blanket rule was redundant for its original purpose. Fixed -- .dockerignore now only excludes data/ specifically, and root-level CSVs are copied in normally via each Dockerfile's COPY . ..
-Known Data Notes
-recipes.csv is the labeled source used for the train/validation/test split.
-The classification problem is recipe-level prediction of whether aggregate rating is at least 4, not a personalized per-user recommender, because the source data does not contain real user-level interaction history.
-Duplicate raw recipes are removed before splitting to prevent identical recipes from leaking across train, validation, and test sets.
-The target is extremely imbalanced, with roughly 94--95% positive examples after deduplication.
-Accuracy is therefore misleading as a primary metric.
-The small number of negative examples makes ROC-AUC estimates noisy, which is why repeated stratified CV is used for final model comparison.
-test_recipes.csv is a separate differently-shaped unlabeled/holdout-style dataset and is intended for later deployment validation and drift simulation rather than model tuning.
-Any synthetic user-interaction features produced by feature engineering are placeholders and should not be represented as real user behavior.
-What's Next
-The full local pipeline (data → training → deployment → monitoring) has been run end-to-end and verified -- remaining work is documentation/presentation polish.
+- **Dashboard image takes 10+ minutes to build / Docker daemon drops the connection (EOF):** caused by `Dockerfile.dashboard`'s build context not being scoped, so Docker was packaging up `.venv/`, `.git/`, `data/`, and `mlartifacts/` (hundreds of MB) on every build. Fixed by adding a root-level `.dockerignore` (already committed) excluding those paths. If you recreate the repo from scratch and hit this again, confirm `.dockerignore` exists at the same level as `docker-compose.yml` and excludes `.venv/`, `.git/`, `data/`, `mlartifacts/`, `mlflow.db`, and `monitoring/drift_data/` | `monitoring/reports/`.
+- **`ImportError: cannot import name 'Dataset' from 'evidently'` (unknown location):** means `evidently` isn't actually installed in the active venv (`pip show evidently` returns nothing), not a version mismatch. Run `pip install -r requirements.txt -r requirements-dev.txt` in the active venv and confirm with `python -c "import evidently; print(evidently.__file__)"` — you want a real file path back, not `None`.
+- **`No module named pytest` when running the pipeline script:** `requirements-dev.txt` wasn't installed in the active venv. Run `pip install -r requirements-dev.txt`.
+- **`run_full_pipeline.ps1` intermittently fails at "Could not retrieve API health response" right after Stage 3 even though the API is actually healthy:** this was a race condition in the script itself — the initial health check has retry logic, but the follow-up call that reads the response body did not, so a single transient connection blip right after `docker compose up` could kill the run. Fixed in the script (the health check now reuses the retried response instead of making an unprotected second call).
+- **A CSV placed at the repo root (e.g. `recipe_menu_template.csv`) doesn't show up inside a container even though `docker compose build` succeeds:** earlier `.dockerignore` had a blanket `*.csv` rule intended to keep `data/`'s many recipe CSVs out of the build context, but it also silently excluded any CSV anywhere in the repo, root-level ones included. `data/` is already excluded as its own directory, so the blanket rule was redundant for its original purpose. Fixed — `.dockerignore` now only excludes `data/` specifically, and root-level CSVs are copied in normally via each Dockerfile's `COPY . .`.
 
-[x] Run docker compose up -d --build (with MLflow started on the host first) and confirm the full stack comes up healthy -- done, see the Docker Compose section above.
-[x] Run python -m monitoring.production_validation against the live API.
-[x] Run the end-to-end pipeline (ingestion -> ... -> monitoring) once, via the Airflow DAGs, recorded.
-[x] Capture MLflow, registry, API, container, and monitoring evidence for the final presentation.
-[x] Document the webapp/ directory and wire it into Docker Compose (Dockerfile.webapp, webapp service, port 8502).
-[ ] Decide whether pipeline_inspector_view.py and service_status_view.py ship as an admin/debug tab in the webapp or stay unused.
-Status
-Completed:
+## Known Data Notes
 
-[x] Dataset ingestion
-[x] Schema/data validation
-[x] Reproducible train/validation/test split
-[x] DVC data/pipeline versioning foundation
-[x] Preprocessing
-[x] Feature engineering
-[x] Non-ML popularity baseline
-[x] Shared ROC-AUC / Precision@k evaluation utilities
-[x] Structured Logistic Regression training
-[x] XGBoost tuning
-[x] Text-feature model experimentation
-[x] Character and word TF-IDF challengers
-[x] Logistic Regression and Linear SVM challengers
-[x] Repeated stratified cross-validation stability analysis
-[x] Ensemble comparison
-[x] Final reproducible candidate comparison
-[x] MLflow experiment tracking
-[x] MLflow model logging
-[x] MLflow Model Registry integration
-[x] recipe-recommender registered model
-[x] champion model alias
-Remaining / downstream:
+- `recipes.csv` is the labeled source used for the train/validation/test split.
+- The classification problem is recipe-level prediction of whether aggregate rating is at least 4, not a personalized per-user recommender, because the source data does not contain real user-level interaction history.
+- Duplicate raw recipes are removed before splitting to prevent identical recipes from leaking across train, validation, and test sets.
+- The target is extremely imbalanced, with roughly 94–95% positive examples after deduplication. Accuracy is therefore misleading as a primary metric.
+- The small number of negative examples makes ROC-AUC estimates noisy, which is why repeated stratified CV is used for final model comparison.
+- `test_recipes.csv` is a separate differently-shaped unlabeled/holdout-style dataset and is intended for later deployment validation and drift simulation rather than model tuning.
+- Any synthetic user-interaction features produced by feature engineering are placeholders and should not be represented as real user behavior.
 
-[x] Full workflow orchestration (Airflow DAGs)
-[x] Containerized inference API (FastAPI)
-[x] Docker Compose deployment stack (FastAPI + MLflow + Airflow + Postgres + Dashboard + Webapp)
-[x] Production validation script (monitoring/production_validation.py)
-[x] Monitoring dashboard/framework (Evidently + custom rule-based checks + custom /metrics endpoint + Streamlit dashboard)
-[x] Drift/stress-test simulation (monitoring/drift_simulation.py, 4 corruption types)
-[x] Anomaly verification (monitoring/verify_alerts.py -- 5/5 scenarios correctly classified, 0 false positives)
-[x] Unit test suite (108 tests, tests/)
-[x] Integration test suite (tests/test_api_integration.py)
-[x] CI/CD (.github/workflows/ci.yml)
-[x] Live production validation run against the deployed Docker stack
-[x] Final presentation/demo artifacts
-Modeling Summary
+## What's Next
+
+- [x] Run `docker compose up -d --build` (with MLflow started on the host first) and confirm the full stack comes up healthy — done, see the Docker Compose section above.
+- [x] Run `python -m monitoring.production_validation` against the live API.
+- [x] Run the end-to-end pipeline (ingestion → ... → monitoring) once, via the Airflow DAGs, recorded.
+- [x] Capture MLflow, registry, API, container, and monitoring evidence for the final presentation.
+- [x] Document the `webapp/` directory and wire it into Docker Compose (`Dockerfile.webapp`, `webapp` service, port 8502).
+- [ ] Decide whether `pipeline_inspector_view.py` and `service_status_view.py` ship as an admin/debug tab in the webapp or stay unused.
+
+## Status
+
+**Completed:**
+
+- [x] Dataset ingestion
+- [x] Schema/data validation
+- [x] Reproducible train/validation/test split
+- [x] DVC data/pipeline versioning foundation
+- [x] Preprocessing
+- [x] Feature engineering
+- [x] Non-ML popularity baseline
+- [x] Shared ROC-AUC / Precision@k evaluation utilities
+- [x] Structured Logistic Regression training
+- [x] XGBoost tuning
+- [x] Text-feature model experimentation
+- [x] Character and word TF-IDF challengers
+- [x] Logistic Regression and Linear SVM challengers
+- [x] Repeated stratified cross-validation stability analysis
+- [x] Ensemble comparison
+- [x] Final reproducible candidate comparison
+- [x] MLflow experiment tracking
+- [x] MLflow model logging
+- [x] MLflow Model Registry integration
+- [x] `recipe-recommender` registered model
+- [x] Champion model alias
+
+**Remaining / downstream:**
+
+- [x] Full workflow orchestration (Airflow DAGs)
+- [x] Containerized inference API (FastAPI)
+- [x] Docker Compose deployment stack (FastAPI + MLflow + Airflow + Postgres + Dashboard + Webapp)
+- [x] Production validation script (`monitoring/production_validation.py`)
+- [x] Monitoring dashboard/framework (Evidently + custom rule-based checks + custom `/metrics` endpoint + Streamlit dashboard)
+- [x] Drift/stress-test simulation (`monitoring/drift_simulation.py`, 4 corruption types)
+- [x] Anomaly verification (`monitoring/verify_alerts.py` — 5/5 scenarios correctly classified, 0 false positives)
+- [x] Unit test suite (108 tests, `tests/`)
+- [x] Integration test suite (`tests/test_api_integration.py`)
+- [x] CI/CD (`.github/workflows/ci.yml`)
+- [x] Live production validation run against the deployed Docker stack
+- [x] Final presentation/demo artifacts
+
+## Modeling Summary
+
 The modeling results illustrate why the MLOps workflow matters. The dataset is small and highly imbalanced, so individual validation results can vary considerably. Structured recipe metadata provided limited discrimination, while ingredient text produced substantially stronger signal.
 
 Rather than selecting the highest single validation score, the final candidate was chosen using repeated stratified cross-validation across 50 held-out folds. The character-Logistic + word-SVM ensemble achieved an average ROC-AUC of approximately 0.681, compared with 0.50 for random ranking, and approximately 0.690 ROC-AUC on the held-out validation split.
